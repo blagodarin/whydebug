@@ -3,6 +3,7 @@
 #include "file.h"
 #include "minidump_format.h"
 #include "utils.h"
+#include <algorithm>
 #include <array>
 #include <cstring>
 #include <iostream>
@@ -131,14 +132,71 @@ namespace
 		CHECK(file.read(threads.data(), thread_list_size) == thread_list_size, "Couldn't read thread list");
 		for (const auto& thread : threads)
 		{
+			const auto index = &thread - &threads.front() + 1;
 			Minidump::Thread t;
 			t.id = thread.ThreadId;
 			t.stack_base = thread.Stack.StartOfMemoryRange;
 			t.stack_size = thread.Stack.Memory.DataSize;
+			try
+			{
+				t.context.reset(new uint8_t[thread.ThreadContext.DataSize]);
+			}
+			catch (const std::bad_alloc&)
+			{
+				std::cerr << "ERROR: Out of memory while loading thread " << index << " context" << std::endl;
+			}
+			try
+			{
+				CHECK(file.seek(stream.Location.Rva), "Bad thread " << index << " context offset");
+				CHECK(file.read(t.context.get(), thread.ThreadContext.DataSize), "Couldn't read thread " << index << " context");
+			}
+			catch (const BadCheck& e)
+			{
+				t.context.reset();
+				std::cerr << "ERROR: " << e.what() << std::endl;
+			}
 			dump.threads.emplace_back(std::move(t));
 			dump.memory_usage.all_stacks += t.stack_size;
 			dump.memory_usage.max_stack = std::max(dump.memory_usage.max_stack, t.stack_size);
 			dump.is_32bit = dump.is_32bit && t.stack_base + t.stack_size <= UINT32_MAX;
+		}
+	}
+
+	void load_thread_info_list(Minidump& dump, File& file, const MINIDUMP_DIRECTORY& stream)
+	{
+		if (dump.threads.empty())
+		{
+			std::cerr << "ERROR: Thread info list found before thread list" << std::endl;
+			return;
+		}
+
+		MINIDUMP_THREAD_INFO_LIST header;
+		CHECK_GE(stream.Location.DataSize, sizeof header, "Bad thread info list stream");
+		CHECK(file.seek(stream.Location.Rva), "Bad thread info list offset");
+		CHECK(file.read(header), "Couldn't read thread info list header");
+		CHECK_GE(header.SizeOfHeader, sizeof header, "Bad thread info list header size");
+
+		MINIDUMP_THREAD_INFO entry;
+		CHECK_GE(header.SizeOfEntry, sizeof entry, "Bad thread info size");
+		const auto base = stream.Location.Rva + header.SizeOfHeader;
+		for (uint32_t i = 0; i < header.NumberOfEntries; ++i)
+		{
+			CHECK(file.seek(base + i * header.SizeOfEntry), "Bad thread info list");
+			CHECK(file.read(entry), "Couldn't read thread info entry");
+
+			const auto j = std::find_if(dump.threads.begin(), dump.threads.end(), [&entry](const auto& thread)
+			{
+				return thread.id == entry.ThreadId;
+			});
+			if (j == dump.threads.end())
+			{
+				std::cerr << "ERROR: Thread info for unknown thread " << ::to_hex(entry.ThreadId) << std::endl;
+				continue;
+			}
+			j->start_address = entry.StartAddress;
+			j->dumping = entry.DumpFlags & MINIDUMP_THREAD_INFO_WRITING_THREAD;
+
+			dump.is_32bit = dump.is_32bit && j->start_address <= UINT32_MAX;
 		}
 	}
 }
@@ -174,6 +232,9 @@ Minidump::Minidump(const std::string& filename)
 			break;
 		case MiscInfoStream:
 			load_misc_info(*this, file, stream);
+			break;
+		case ThreadInfoListStream:
+			load_thread_info_list(*this, file, stream);
 			break;
 		default:
 			break;
@@ -217,13 +278,27 @@ void Minidump::print_summary(std::ostream& stream)
 void Minidump::print_threads(std::ostream& stream)
 {
 	std::vector<std::vector<std::string>> table;
-	table.push_back({"#", "ID", "STACK"});
+	table.push_back({"#", "ID", "STACK", "START", "D"});
 	for (const auto& thread : threads)
 	{
+		std::string start_address;
+		if (thread.start_address)
+		{
+			start_address = ::to_hex(thread.start_address, is_32bit);
+			const auto i = std::find_if(modules.begin(), modules.end(), [&thread](const auto& module)
+			{
+				return thread.start_address >= module.image_base
+					&& thread.start_address < module.image_base + module.image_size;
+			});
+			if (i != modules.end())
+				start_address = i->file_name + "!" + start_address;
+		}
 		table.push_back({
 			std::to_string(&thread - &threads.front() + 1),
 			::to_hex(thread.id),
-			::to_hex(thread.stack_base, is_32bit) + " - " + ::to_hex(thread.stack_base + thread.stack_size, is_32bit)
+			::to_hex(thread.stack_base, is_32bit) + " - " + ::to_hex(thread.stack_base + thread.stack_size, is_32bit),
+			start_address,
+			thread.dumping ? "*" : ""
 		});
 	}
 	for (const auto& row : ::format_table(table))

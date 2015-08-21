@@ -44,7 +44,7 @@ std::vector<std::string> format_table(const std::vector<std::vector<std::string>
 		for (size_t i = 0; i < row.size(); ++i)
 		{
 			if (i > 0)
-				value += "   ";
+				value += "  ";
 			value += row[i] + std::string(widths[i] - row[i].size(), ' ');
 		}
 		result.emplace_back(std::move(value));
@@ -65,14 +65,14 @@ std::string to_ascii(const std::u16string& string)
 std::string to_hex(uint32_t value)
 {
 	std::array<char, 9> buffer;
-	::snprintf(buffer.data(), buffer.size(), "%08" PRIX32, value);
+	::snprintf(buffer.data(), buffer.size(), "%08" PRIx32, value);
 	return buffer.data();
 }
 
 std::string to_hex(uint64_t value)
 {
 	std::array<char, 17> buffer;
-	::snprintf(buffer.data(), buffer.size(), "%016" PRIX64, value);
+	::snprintf(buffer.data(), buffer.size(), "%016" PRIx64, value);
 	return buffer.data();
 }
 

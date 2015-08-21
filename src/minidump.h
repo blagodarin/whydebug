@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <iosfwd>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -33,6 +34,9 @@ struct Minidump
 		uint32_t id = 0;
 		uint64_t stack_base = 0;
 		uint32_t stack_size = 0;
+		std::unique_ptr<uint8_t[]> context;
+		uint64_t start_address = 0;
+		bool dumping = false;
 	};
 
 	time_t timestamp = 0;

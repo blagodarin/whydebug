@@ -1,49 +1,12 @@
 #include "minidump.h"
+#include "check.h"
 #include "file.h"
 #include "minidump_format.h"
 #include "utils.h"
 #include <array>
 #include <cstring>
+#include <iostream>
 #include <memory>
-#include <sstream>
-#include <stdexcept>
-#include <vector>
-
-#define ENSURE(value, message) \
-	do { \
-		if (!(value)) { \
-			std::stringstream stream_; \
-			stream_ << message; \
-			throw std::runtime_error(stream_.str()); \
-		} \
-	} while (false) \
-
-#define ENSURE_EQ(value, expected, message) \
-	do { \
-		if ((value) != (expected)) { \
-			std::stringstream stream_; \
-			stream_ << message << ": value = " << (value) << ", expected = " << (expected); \
-			throw std::runtime_error(stream_.str()); \
-		} \
-	} while (false) \
-
-#define ENSURE_LE(value, max, message) \
-	do { \
-		if ((value) > (max)) { \
-			std::stringstream stream_; \
-			stream_ << message << ": value = " << (value) << ", max = " << (max); \
-			throw std::runtime_error(stream_.str()); \
-		} \
-	} while (false) \
-
-#define ENSURE_GE(value, min, message) \
-	do { \
-		if ((value) < (min)) { \
-			std::stringstream stream_; \
-			stream_ << message << ": value = " << (value) << ", min = " << (min); \
-			throw std::runtime_error(stream_.str()); \
-		} \
-	} while (false) \
 
 namespace
 {
@@ -76,11 +39,11 @@ namespace
 
 	std::u16string read_string(File& file, RVA rva)
 	{
-		ENSURE(file.seek(rva), "Bad string offset");
+		CHECK(file.seek(rva), "Bad string offset");
 		MINIDUMP_STRING string_header;
-		ENSURE(file.read(string_header), "Couldn't read string header");
+		CHECK(file.read(string_header), "Couldn't read string header");
 		std::u16string string(string_header.Length / 2, u' ');
-		ENSURE(file.read(const_cast<char16_t*>(string.data()), string.size() * sizeof(char16_t)), "Couldn't read string");
+		CHECK(file.read(const_cast<char16_t*>(string.data()), string.size() * sizeof(char16_t)), "Couldn't read string");
 		return std::move(string);
 	}
 
@@ -101,9 +64,9 @@ namespace
 	void load_misc_info(Minidump& dump, File& file, const MINIDUMP_DIRECTORY& stream)
 	{
 		MINIDUMP_MISC_INFO misc_info;
-		ENSURE(stream.Location.DataSize >= sizeof misc_info, "Bad misc info stream");
-		ENSURE(file.seek(stream.Location.Rva), "Bad misc info offset");
-		ENSURE(file.read(misc_info), "Couldn't read misc info");
+		CHECK(stream.Location.DataSize >= sizeof misc_info, "Bad misc info stream");
+		CHECK(file.seek(stream.Location.Rva), "Bad misc info offset");
+		CHECK(file.read(misc_info), "Couldn't read misc info");
 		if (misc_info.Flags1 & MINIDUMP_MISC1_PROCESS_ID)
 			dump.process_id = misc_info.ProcessId;
 		if (misc_info.Flags1 & MINIDUMP_MISC1_PROCESS_TIMES)
@@ -118,12 +81,12 @@ namespace
 	void load_module_list(Minidump& dump, File& file, const MINIDUMP_DIRECTORY& stream)
 	{
 		MINIDUMP_MODULE_LIST module_list_header;
-		ENSURE(stream.Location.DataSize >= sizeof module_list_header, "Bad module list stream");
-		ENSURE(file.seek(stream.Location.Rva), "Bad module list offset");
-		ENSURE(file.read(module_list_header), "Couldn't read module list header");
+		CHECK(stream.Location.DataSize >= sizeof module_list_header, "Bad module list stream");
+		CHECK(file.seek(stream.Location.Rva), "Bad module list offset");
+		CHECK(file.read(module_list_header), "Couldn't read module list header");
 		std::vector<MINIDUMP_MODULE> modules(module_list_header.NumberOfModules);
 		const auto module_list_size = modules.size() * sizeof(MINIDUMP_MODULE);
-		ENSURE(file.read(modules.data(), module_list_size) == module_list_size, "Couldn't read module list");
+		CHECK(file.read(modules.data(), module_list_size) == module_list_size, "Couldn't read module list");
 		for (const auto& module : modules)
 		{
 			Minidump::Module m;
@@ -138,14 +101,14 @@ namespace
 			{
 				try
 				{
-					ENSURE_GE(module.CvRecord.DataSize, CodeViewRecordPDB70::MinSize, "Bad PDB reference size");
+					CHECK_GE(module.CvRecord.DataSize, CodeViewRecordPDB70::MinSize, "Bad PDB reference size");
 					const auto& cv = ::allocate_pod<CodeViewRecordPDB70>(module.CvRecord.DataSize + 1);
-					ENSURE(file.seek(module.CvRecord.Rva), "Bad PDB reference");
-					ENSURE(file.read(cv.get(), module.CvRecord.DataSize), "Couldn't read PDB reference");
+					CHECK(file.seek(module.CvRecord.Rva), "Bad PDB reference");
+					CHECK(file.read(cv.get(), module.CvRecord.DataSize), "Couldn't read PDB reference");
 					m.pdb_path = cv->pdb_name;
 					m.pdb_name = m.pdb_path.substr(m.pdb_path.find_last_of('\\') + 1);
 				}
-				catch (const std::runtime_error& e)
+				catch (const BadCheck& e)
 				{
 					std::cerr << "ERROR: [" << m.file_name << "] " << e.what() << std::endl;
 				}
@@ -153,18 +116,19 @@ namespace
 			dump.modules.emplace_back(std::move(m));
 			dump.memory_usage.all_images += m.image_size;
 			dump.memory_usage.max_image = std::max(dump.memory_usage.max_image, m.image_size);
+			dump.is_32bit = dump.is_32bit && m.image_base + m.image_size <= UINT32_MAX;
 		}
 	}
 
 	void load_thread_list(Minidump& dump, File& file, const MINIDUMP_DIRECTORY& stream)
 	{
 		MINIDUMP_THREAD_LIST thread_list_header;
-		ENSURE(stream.Location.DataSize >= sizeof thread_list_header, "Bad thread list stream");
-		ENSURE(file.seek(stream.Location.Rva), "Bad thread list offset");
-		ENSURE(file.read(thread_list_header), "Couldn't read thread list header");
+		CHECK(stream.Location.DataSize >= sizeof thread_list_header, "Bad thread list stream");
+		CHECK(file.seek(stream.Location.Rva), "Bad thread list offset");
+		CHECK(file.read(thread_list_header), "Couldn't read thread list header");
 		std::vector<MINIDUMP_THREAD> threads(thread_list_header.NumberOfThreads);
 		const auto thread_list_size = threads.size() * sizeof(MINIDUMP_THREAD);
-		ENSURE(file.read(threads.data(), thread_list_size) == thread_list_size, "Couldn't read thread list");
+		CHECK(file.read(threads.data(), thread_list_size) == thread_list_size, "Couldn't read thread list");
 		for (const auto& thread : threads)
 		{
 			Minidump::Thread t;
@@ -174,6 +138,7 @@ namespace
 			dump.threads.emplace_back(std::move(t));
 			dump.memory_usage.all_stacks += t.stack_size;
 			dump.memory_usage.max_stack = std::max(dump.memory_usage.max_stack, t.stack_size);
+			dump.is_32bit = dump.is_32bit && t.stack_base + t.stack_size <= UINT32_MAX;
 		}
 	}
 }
@@ -181,19 +146,19 @@ namespace
 Minidump::Minidump(const std::string& filename)
 {
 	File file(filename);
-	ENSURE(file, "Couldn't open \"" << filename << "\"");
+	CHECK(file, "Couldn't open \"" << filename << "\"");
 
 	MINIDUMP_HEADER header;
-	ENSURE(file.read(header), "Couldn't read header");
-	ENSURE_EQ(header.Signature, MINIDUMP_HEADER::SIGNATURE, "Header signature mismatch");
-	ENSURE_EQ(header.Version & MINIDUMP_HEADER::VERSION_MASK, MINIDUMP_HEADER::VERSION, "Header version mismatch");
+	CHECK(file.read(header), "Couldn't read header");
+	CHECK_EQ(header.Signature, MINIDUMP_HEADER::SIGNATURE, "Header signature mismatch");
+	CHECK_EQ(header.Version & MINIDUMP_HEADER::VERSION_MASK, MINIDUMP_HEADER::VERSION, "Header version mismatch");
 
 	timestamp = header.TimeDateStamp;
 
 	std::vector<MINIDUMP_DIRECTORY> streams(header.NumberOfStreams);
-	ENSURE(file.seek(header.StreamDirectoryRva), "Bad stream directory offset");
+	CHECK(file.seek(header.StreamDirectoryRva), "Bad stream directory offset");
 	const auto stream_directory_size = streams.size() * sizeof(MINIDUMP_DIRECTORY);
-	ENSURE(file.read(streams.data(), stream_directory_size) == stream_directory_size, "Couldn't read stream directory");
+	CHECK(file.read(streams.data(), stream_directory_size) == stream_directory_size, "Couldn't read stream directory");
 
 	for (const auto& stream : streams)
 	{
@@ -216,61 +181,51 @@ Minidump::Minidump(const std::string& filename)
 	}
 }
 
-std::ostream& operator<<(std::ostream& stream, const Minidump& dump)
+void Minidump::print_modules(std::ostream& stream)
 {
-	stream << "Timestamp: " << ::time_t_to_string(dump.timestamp) << "\n";
-	if (dump.process_id)
-		stream << "Process ID: " << dump.process_id << "\n";
-	if (dump.process_create_time)
+	std::vector<std::vector<std::string>> table;
+	table.push_back({"#", "NAME", "VERSION", "IMAGE", "PDB"});
+	for (const auto& module : modules)
+	{
+		table.push_back({
+			std::to_string(&module - &modules.front() + 1),
+			module.file_name,
+			module.product_version,
+			::to_hex(module.image_base, is_32bit) + " - " + ::to_hex(module.image_base + module.image_size, is_32bit),
+			module.pdb_name
+		});
+	}
+	for (const auto& row : ::format_table(table))
+		stream << '\t' << row << '\n';
+}
+
+void Minidump::print_summary(std::ostream& stream)
+{
+	stream << "Timestamp: " << ::time_t_to_string(timestamp) << "\n";
+	if (process_id)
+		stream << "Process ID: " << process_id << "\n";
+	if (process_create_time)
 	{
 		stream
-			<< "Process creation time: " << ::time_t_to_string(dump.process_create_time)
-				<< " (calculated uptime: " << ::duration_to_string(dump.timestamp - dump.process_create_time) << ")\n"
-			<< "Process user time: " << ::duration_to_string(dump.process_user_time) << "\n"
-			<< "Process kernel time: " << ::duration_to_string(dump.process_kernel_time) << "\n";
+			<< "Process creation time: " << ::time_t_to_string(process_create_time)
+				<< " (calculated uptime: " << ::duration_to_string(timestamp - process_create_time) << ")\n"
+			<< "Process user time: " << ::duration_to_string(process_user_time) << "\n"
+			<< "Process kernel time: " << ::duration_to_string(process_kernel_time) << "\n";
 	}
-	if (!dump.modules.empty())
+}
+
+void Minidump::print_threads(std::ostream& stream)
+{
+	std::vector<std::vector<std::string>> table;
+	table.push_back({"#", "ID", "STACK"});
+	for (const auto& thread : threads)
 	{
-		stream << "Modules:\n";
-		std::vector<std::vector<std::string>> table;
-		for (const auto& module : dump.modules)
-		{
-			table.push_back({
-				std::to_string(&module - &dump.modules.front() + 1),
-				module.file_name,
-				module.product_version,
-				module.timestamp,
-				module.pdb_name,
-				::to_hex(module.image_base),
-				::to_hex(module.image_size)
-			});
-		}
-		for (const auto& row : ::format_table(table))
-			stream << '\t' << row << '\n';
+		table.push_back({
+			std::to_string(&thread - &threads.front() + 1),
+			::to_hex(thread.id),
+			::to_hex(thread.stack_base, is_32bit) + " - " + ::to_hex(thread.stack_base + thread.stack_size, is_32bit)
+		});
 	}
-	if (!dump.threads.empty())
-	{
-		stream << "Threads:\n";
-		std::vector<std::vector<std::string>> table;
-		table.push_back({"#", "ID", "Stack top", "Stack end", "Size"});
-		for (const auto& thread : dump.threads)
-		{
-			table.push_back({
-				std::to_string(&thread - &dump.threads.front() + 1),
-				::to_hex(thread.id),
-				::to_hex(thread.stack_base),
-				::to_hex(thread.stack_base + thread.stack_size),
-				::to_hex(thread.stack_size)
-			});
-		}
-		for (const auto& row : ::format_table(table))
-			stream << '\t' << row << '\n';
-	}
-	stream << "Memory usage:\n"
-		"\tImages: " << ::to_human_readable(dump.memory_usage.all_images)
-			<< " (max " << ::to_human_readable(dump.memory_usage.max_image) << ")\n"
-		"\tStacks: " << ::to_human_readable(dump.memory_usage.all_stacks)
-			<< " (max " << ::to_human_readable(dump.memory_usage.max_stack) << ")\n"
-		;
-	return stream;
+	for (const auto& row : ::format_table(table))
+		stream << '\t' << row << '\n';
 }

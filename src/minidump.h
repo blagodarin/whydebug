@@ -1,6 +1,8 @@
 #pragma once
 
-#include <iostream>
+#include <cstdint>
+#include <iosfwd>
+#include <string>
 #include <vector>
 
 struct Minidump
@@ -41,6 +43,7 @@ struct Minidump
 	std::vector<Module> modules;
 	std::vector<Thread> threads;
 	MemoryUsage memory_usage;
+	bool is_32bit = true;
 
 	Minidump(const std::string& filename);
 
@@ -49,6 +52,8 @@ struct Minidump
 	Minidump(Minidump&&) = default;
 	Minidump& operator=(const Minidump&) = default;
 	Minidump& operator=(Minidump&&) = default;
-};
 
-std::ostream& operator<<(std::ostream&, const Minidump&);
+	void print_modules(std::ostream&);
+	void print_summary(std::ostream&);
+	void print_threads(std::ostream&);
+};

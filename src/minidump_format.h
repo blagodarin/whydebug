@@ -653,4 +653,69 @@ struct MINIDUMP_USER_STREAM
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+//
+struct ContextX86
+{
+	enum : uint32_t
+	{
+		CONTEXT_I386 = 0x00010000,
+		CONTEXT_CONTROL = 0x00000001,
+		CONTEXT_INTEGER = 0x00000002,
+		CONTEXT_SEGMENTS = 0x00000004,
+		CONTEXT_FLOATING_POINT = 0x00000008,
+		CONTEXT_DEBUG_REGISTERS = 0x00000010,
+		CONTEXT_EXTENDED_REGISTERS = 0x00000020,
+		CONTEXT_XSTATE = 0x00000040,
+	} flags;
+
+	// CONTEXT_DEBUG_REGISTERS
+	uint32_t dr0;
+	uint32_t dr1;
+	uint32_t dr2;
+	uint32_t dr3;
+	uint32_t dr6;
+	uint32_t dr7;
+
+	// CONTEXT_FLOATING_POINT
+	struct
+	{
+		uint32_t control_word;
+		uint32_t status_word;
+		uint32_t tag_word;
+		uint32_t error_offset;
+		uint32_t error_selector;
+		uint32_t data_offset;
+		uint32_t data_selector;
+		uint8_t  register_area[80];
+		uint32_t cr0_npx_state;
+	} float_save;
+
+	// CONTEXT_SEGMENTS
+	uint32_t gs;
+	uint32_t fs;
+	uint32_t es;
+	uint32_t ds;
+
+	// CONTEXT_INTEGER
+	uint32_t edi;
+	uint32_t esi;
+	uint32_t ebx;
+	uint32_t edx;
+	uint32_t ecx;
+	uint32_t eax;
+
+	// CONTEXT_CONTROL
+	uint32_t ebp;
+	uint32_t eip;
+	uint32_t cs; // "Must be sanitized", whatever that means.
+	uint32_t eflags; // "Must be sanitized", whatever that means.
+	uint32_t esp;
+	uint32_t ss;
+
+	// CONTEXT_EXTENDED_REGISTERS
+	uint8_t extended_registers[512];
+};
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 #pragma pack(pop)

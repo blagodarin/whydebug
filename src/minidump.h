@@ -34,9 +34,17 @@ struct Minidump
 		uint32_t id = 0;
 		uint64_t stack_base = 0;
 		uint32_t stack_size = 0;
-		std::unique_ptr<uint8_t[]> context;
 		uint64_t start_address = 0;
 		bool dumping = false;
+		union
+		{
+			struct
+			{
+				uint32_t eip;
+			} x86;
+		} context;
+
+		Thread();
 	};
 
 	time_t timestamp = 0;
@@ -60,4 +68,8 @@ struct Minidump
 	void print_modules(std::ostream&);
 	void print_summary(std::ostream&);
 	void print_threads(std::ostream&);
+
+private:
+
+	std::string decode_code_address(uint64_t);
 };

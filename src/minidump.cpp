@@ -133,28 +133,26 @@ namespace
 		for (const auto& thread : threads)
 		{
 			const auto index = &thread - &threads.front() + 1;
+
 			Minidump::Thread t;
 			t.id = thread.ThreadId;
 			t.stack_base = thread.Stack.StartOfMemoryRange;
 			t.stack_size = thread.Stack.Memory.DataSize;
+
 			try
 			{
-				t.context.reset(new uint8_t[thread.ThreadContext.DataSize]);
-			}
-			catch (const std::bad_alloc&)
-			{
-				std::cerr << "ERROR: Out of memory while loading thread " << index << " context" << std::endl;
-			}
-			try
-			{
-				CHECK(file.seek(stream.Location.Rva), "Bad thread " << index << " context offset");
-				CHECK(file.read(t.context.get(), thread.ThreadContext.DataSize), "Couldn't read thread " << index << " context");
+				ContextX86 context;
+				CHECK_EQ(thread.ThreadContext.DataSize, sizeof context, "Bad thread context size");
+				CHECK(file.seek(thread.ThreadContext.Rva), "Bad thread " << index << " context offset");
+				CHECK(file.read(context), "Couldn't read thread " << index << " context");
+				CHECK(context.flags & (ContextX86::CONTEXT_I386 | ContextX86::CONTEXT_CONTROL), "Bad thread context");
+				t.context.x86.eip = context.eip;
 			}
 			catch (const BadCheck& e)
 			{
-				t.context.reset();
 				std::cerr << "ERROR: " << e.what() << std::endl;
 			}
+
 			dump.threads.emplace_back(std::move(t));
 			dump.memory_usage.all_stacks += t.stack_size;
 			dump.memory_usage.max_stack = std::max(dump.memory_usage.max_stack, t.stack_size);
@@ -199,6 +197,11 @@ namespace
 			dump.is_32bit = dump.is_32bit && j->start_address <= UINT32_MAX;
 		}
 	}
+}
+
+Minidump::Thread::Thread()
+{
+	::memset(&context, 0, sizeof context);
 }
 
 Minidump::Minidump(const std::string& filename)
@@ -278,7 +281,7 @@ void Minidump::print_summary(std::ostream& stream)
 void Minidump::print_threads(std::ostream& stream)
 {
 	std::vector<std::vector<std::string>> table;
-	table.push_back({"#", "ID", "STACK", "START", "D"});
+	table.push_back({"#", "ID", "STACK", "START", "CURRENT"});
 	for (const auto& thread : threads)
 	{
 		std::string start_address;
@@ -297,10 +300,24 @@ void Minidump::print_threads(std::ostream& stream)
 			std::to_string(&thread - &threads.front() + 1),
 			::to_hex(thread.id),
 			::to_hex(thread.stack_base, is_32bit) + " - " + ::to_hex(thread.stack_base + thread.stack_size, is_32bit),
-			start_address,
-			thread.dumping ? "*" : ""
+			decode_code_address(thread.start_address),
+			decode_code_address(thread.context.x86.eip)
 		});
 	}
 	for (const auto& row : ::format_table(table))
 		stream << '\t' << row << '\n';
+}
+
+std::string Minidump::decode_code_address(uint64_t address)
+{
+	if (!address)
+		return {};
+	std::string result = ::to_hex(address, is_32bit);
+	const auto i = std::find_if(modules.begin(), modules.end(), [address](const auto& module)
+	{
+		return address >= module.image_base && address < module.image_base + module.image_size;
+	});
+	if (i != modules.end())
+		result = i->file_name + "!" + result;
+	return std::move(result);
 }

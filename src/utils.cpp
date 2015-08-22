@@ -2,6 +2,8 @@
 #include <array>
 #include <cinttypes>
 #include <cstring>
+#include <iomanip>
+#include <iostream>
 
 std::string time_t_to_string(time_t time)
 {
@@ -90,4 +92,17 @@ std::string to_human_readable(uint64_t bytes)
 	if (bytes < 1024)
 		return std::to_string(bytes) + " G";
 	return std::to_string(bytes) + " T";
+}
+
+void print_data(const uint32_t* data, size_t bytes)
+{
+	static const size_t line_size = 16;
+	const auto size = bytes / sizeof *data;
+	for (size_t i = 0; i < size; ++i)
+	{
+		std::cout << (i % line_size == 0 ? '\t' : ' ');
+		std::cout << std::hex << std::setfill('0') << std::setw(2 * sizeof *data) << data[i] << std::dec;
+		if ((i + 1) % line_size == 0 || (i + 1) == size)
+			std::cout << std::endl;
+	}
 }

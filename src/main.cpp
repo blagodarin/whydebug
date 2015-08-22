@@ -38,6 +38,8 @@ int main(int argc, char** argv)
 			{
 				if (args.empty())
 					dump->print_threads(std::cout);
+				else if (args.size() == 1)
+					dump->print_thread_call_stack(std::cout, args[0]);
 				else
 					std::cerr << "ERROR: Bad arguments" << std::endl;
 			}

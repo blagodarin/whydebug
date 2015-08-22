@@ -22,11 +22,8 @@ public:
 	void print_exception_call_stack(std::ostream&);
 	void print_modules(std::ostream&);
 	void print_summary(std::ostream&);
+	void print_thread_call_stack(std::ostream&, const std::string& thread_index);
 	void print_threads(std::ostream&);
-
-private:
-
-	std::string decode_code_address(uint64_t);
 
 private:
 

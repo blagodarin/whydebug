@@ -40,8 +40,10 @@ struct MinidumpData
 			{
 				uint32_t eip;
 				uint32_t esp;
+				uint32_t ebp;
 			} x86;
 		} context = {};
+		std::unique_ptr<uint8_t[]> stack;
 	};
 
 	struct Exception

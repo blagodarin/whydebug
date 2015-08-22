@@ -141,11 +141,16 @@ namespace
 				CHECK(::has_flags(context.flags, ContextX86::I386 | ContextX86::Control), "Bad thread context");
 				t.context.x86.eip = context.eip;
 				t.context.x86.esp = context.esp;
+				t.context.x86.ebp = context.ebp;
 			}
 			catch (const BadCheck& e)
 			{
 				std::cerr << "ERROR: " << e.what() << std::endl;
 			}
+
+			t.stack.reset(new uint8_t[t.stack_size]);
+			CHECK(file.seek(thread.Stack.Memory.Rva), "Bad thread " << index << " stack offset");
+			CHECK(file.read(t.stack.get(), t.stack_size), "Couldn't read thread " << index << " stack");
 
 			dump.threads.emplace_back(std::move(t));
 			dump.memory_usage.all_stacks += t.stack_size;

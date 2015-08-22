@@ -19,6 +19,7 @@ public:
 	Minidump& operator=(const Minidump&) = default;
 	Minidump& operator=(Minidump&&) = default;
 
+	void print_exception_call_stack(std::ostream&);
 	void print_modules(std::ostream&);
 	void print_summary(std::ostream&);
 	void print_threads(std::ostream&);
@@ -29,5 +30,5 @@ private:
 
 private:
 
-	std::unique_ptr<MinidumpData> _data;
+	const std::unique_ptr<MinidumpData> _data;
 };

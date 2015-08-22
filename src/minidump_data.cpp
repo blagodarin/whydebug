@@ -25,12 +25,26 @@ namespace
 		return std::move(string);
 	}
 
+	void load_exception(MinidumpData& dump, File& file, const MINIDUMP_DIRECTORY& stream)
+	{
+		CHECK(!dump.exception, "Duplicate exception");
+
+		MINIDUMP_EXCEPTION_STREAM exception;
+		CHECK(stream.Location.DataSize >= sizeof exception, "Bad exception stream");
+		CHECK(file.seek(stream.Location.Rva), "Bad exception offset");
+		CHECK(file.read(exception), "Couldn't read exception");
+
+		dump.exception = std::make_unique<MinidumpData::Exception>();
+		dump.exception->thread_id = exception.ThreadId;
+	}
+
 	void load_misc_info(MinidumpData& dump, File& file, const MINIDUMP_DIRECTORY& stream)
 	{
 		MINIDUMP_MISC_INFO misc_info;
 		CHECK(stream.Location.DataSize >= sizeof misc_info, "Bad misc info stream");
 		CHECK(file.seek(stream.Location.Rva), "Bad misc info offset");
 		CHECK(file.read(misc_info), "Couldn't read misc info");
+
 		if (misc_info.Flags1 & MINIDUMP_MISC1_PROCESS_ID)
 			dump.process_id = misc_info.ProcessId;
 		if (misc_info.Flags1 & MINIDUMP_MISC1_PROCESS_TIMES)
@@ -227,8 +241,6 @@ std::unique_ptr<MinidumpData> MinidumpData::load(const std::string& file_name)
 
 	for (const auto& stream : streams)
 	{
-		const auto& stream_name = stream_type_to_string(stream.StreamType);
-		std::cerr << "Found " << stream_name << std::endl;
 		switch (stream.StreamType)
 		{
 		case ThreadListStream:
@@ -237,6 +249,9 @@ std::unique_ptr<MinidumpData> MinidumpData::load(const std::string& file_name)
 		case ModuleListStream:
 			load_module_list(*dump, file, stream);
 			break;
+		case ExceptionStream:
+			load_exception(*dump, file, stream);
+			break;
 		case MiscInfoStream:
 			load_misc_info(*dump, file, stream);
 			break;
@@ -244,8 +259,20 @@ std::unique_ptr<MinidumpData> MinidumpData::load(const std::string& file_name)
 			load_thread_info_list(*dump, file, stream);
 			break;
 		default:
+			const auto& stream_name = stream_type_to_string(stream.StreamType);
+			std::cerr << "WARNING: Skipped " << stream_name << std::endl;
 			break;
 		}
+	}
+
+	if (dump->exception)
+	{
+		const auto i = std::find_if(dump->threads.begin(), dump->threads.end(), [&dump](const auto& thread)
+		{
+			return thread.id == dump->exception->thread_id;
+		});
+		CHECK(i != dump->threads.end(), "Exception in unknown thread");
+		dump->exception->thread = &*i;
 	}
 
 	return dump;

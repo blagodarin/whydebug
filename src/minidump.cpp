@@ -13,6 +13,20 @@ Minidump::~Minidump()
 {
 }
 
+void Minidump::print_exception_call_stack(std::ostream& stream)
+{
+	if (!_data->exception)
+		return;
+	const auto& thread = *_data->exception->thread;
+	if (!thread.start_address || !thread.context.x86.eip)
+		return;
+	stream
+		<< '\t' << decode_code_address(thread.context.x86.eip) << '\n'
+		<< '\t' << "..." << '\n' // TODO: Print the real call stack.
+		<< '\t' << decode_code_address(thread.start_address) << '\n' // TODO: Print the last return address.
+		;
+}
+
 void Minidump::print_modules(std::ostream& stream)
 {
 	std::vector<std::vector<std::string>> table;

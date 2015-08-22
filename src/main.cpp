@@ -42,6 +42,14 @@ int main(int argc, char** argv)
 					std::cerr << "ERROR: Bad arguments" << std::endl;
 			}
 		},
+		{ "x", [&dump](const std::vector<std::string>& args)
+			{
+				if (args.empty())
+					dump->print_exception_call_stack(std::cout);
+				else
+					std::cerr << "ERROR: Bad arguments" << std::endl;
+			}
+		},
 	};
 
 	const auto execute = [&commands](const std::string& line)

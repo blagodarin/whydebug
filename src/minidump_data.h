@@ -44,6 +44,12 @@ struct MinidumpData
 		} context = {};
 	};
 
+	struct Exception
+	{
+		uint32_t thread_id = 0;
+		Thread*  thread = nullptr;
+	};
+
 	time_t timestamp = 0;
 	uint32_t process_id = 0;
 	time_t process_create_time = 0;
@@ -53,6 +59,7 @@ struct MinidumpData
 	std::vector<Thread> threads;
 	MemoryUsage memory_usage;
 	bool is_32bit = true;
+	std::unique_ptr<Exception> exception;
 
 	//
 	static std::unique_ptr<MinidumpData> load(const std::string& file_name);

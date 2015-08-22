@@ -25,7 +25,7 @@ private:
 	do { \
 		if ((value) != (expected)) { \
 			std::stringstream stream_; \
-			stream_ << message << ": value = " << (value) << ", expected = " << (expected); \
+			stream_ << message << " (" << (value) << " != " << (expected) << ")"; \
 			throw BadCheck(stream_.str()); \
 		} \
 	} while (false)
@@ -34,7 +34,7 @@ private:
 	do { \
 		if ((value) > (max)) { \
 			std::stringstream stream_; \
-			stream_ << message << ": value = " << (value) << ", max = " << (max); \
+			stream_ << message << " (" << (value) << " > " << (max) << ")"; \
 			throw BadCheck(stream_.str()); \
 		} \
 	} while (false)
@@ -43,7 +43,7 @@ private:
 	do { \
 		if ((value) < (min)) { \
 			std::stringstream stream_; \
-			stream_ << message << ": value = " << (value) << ", min = " << (min); \
+			stream_ << message << " (" << (value) << " < " << (min) << ")"; \
 			throw BadCheck(stream_.str()); \
 		} \
 	} while (false)

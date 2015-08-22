@@ -6,8 +6,10 @@
 #include <string>
 #include <vector>
 
-struct Minidump
+class Minidump
 {
+public:
+
 	struct MemoryUsage
 	{
 		uint64_t all_images = 0;
@@ -41,6 +43,7 @@ struct Minidump
 			struct
 			{
 				uint32_t eip;
+				uint32_t esp;
 			} x86;
 		} context;
 

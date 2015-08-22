@@ -653,19 +653,18 @@ struct MINIDUMP_USER_STREAM
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-//
+// CONTEXT (x86)
 struct ContextX86
 {
 	enum : uint32_t
 	{
-		CONTEXT_I386 = 0x00010000,
-		CONTEXT_CONTROL = 0x00000001,
-		CONTEXT_INTEGER = 0x00000002,
-		CONTEXT_SEGMENTS = 0x00000004,
-		CONTEXT_FLOATING_POINT = 0x00000008,
-		CONTEXT_DEBUG_REGISTERS = 0x00000010,
-		CONTEXT_EXTENDED_REGISTERS = 0x00000020,
-		CONTEXT_XSTATE = 0x00000040,
+		I386              = 0x00010000, // CONTEXT_I386
+		Control           = 0x00000001, // CONTEXT_CONTROL
+		Integer           = 0x00000002, // CONTEXT_INTEGER
+		Segments          = 0x00000004, // CONTEXT_SEGMENTS
+		FloatingPoint     = 0x00000008, // CONTEXT_FLOATING_POINT
+		DebugRegisters    = 0x00000010, // CONTEXT_DEBUG_REGISTERS
+		ExtendedRegisters = 0x00000020, // CONTEXT_EXTENDED_REGISTERS
 	} flags;
 
 	// CONTEXT_DEBUG_REGISTERS

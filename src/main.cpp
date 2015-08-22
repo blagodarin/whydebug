@@ -6,8 +6,11 @@
 
 int main(int argc, char** argv)
 {
-	if (argc != 2)
+	if (argc != 2 && argc != 3)
+	{
+		std::cerr << "Usage:\n\t" << argv[0] << " DUMP [COMMAND]" << std::endl;
 		return 1;
+	}
 
 	std::unique_ptr<Minidump> dump;
 	try
@@ -40,17 +43,8 @@ int main(int argc, char** argv)
 		},
 	};
 
-	dump->print_summary(std::cout);
-
-	for (std::string line; ; )
+	const auto execute = [&commands](const std::string& line)
 	{
-		std::cout << "?> ";
-		if (!std::getline(std::cin, line))
-		{
-			std::cout << std::endl;
-			break;
-		}
-
 		std::string command;
 		std::vector<std::string> args;
 		auto end = std::string::npos;
@@ -72,6 +66,25 @@ int main(int argc, char** argv)
 			i->second(args);
 		else
 			std::cout << "Unknown command \"" << command << "\"" << std::endl;
+	};
+
+	if (argc == 3)
+	{
+		execute(argv[2]);
+	}
+	else
+	{
+		dump->print_summary(std::cout);
+		for (std::string line; ; )
+		{
+			std::cout << "?> ";
+			if (!std::getline(std::cin, line))
+			{
+				std::cout << std::endl;
+				break;
+			}
+			execute(line);
+		}
 	}
 
 	return 0;

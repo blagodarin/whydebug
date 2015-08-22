@@ -9,10 +9,10 @@ int main(int argc, char** argv)
 	if (argc != 2)
 		return 1;
 
-	std::unique_ptr<Minidump> minidump;
+	std::unique_ptr<Minidump> dump;
 	try
 	{
-		minidump = std::make_unique<Minidump>(argv[1]);
+		dump = std::make_unique<Minidump>(argv[1]);
 	}
 	catch (const BadCheck& e)
 	{
@@ -20,18 +20,29 @@ int main(int argc, char** argv)
 		return 1;
 	}
 
-	const std::unordered_map<std::string, std::function<void()>> commands =
+	const std::unordered_map<std::string, std::function<void(const std::vector<std::string>&)>> commands =
 	{
-		{ "", []() {} },
-		{ "modules", [&minidump]() { minidump->print_modules(std::cout); } },
-		{ "summary", [&minidump]() { minidump->print_summary(std::cout); } },
-		{ "threads", [&minidump]() { minidump->print_threads(std::cout); } },
+		{ "m", [&dump](const std::vector<std::string>& args)
+			{
+				if (args.empty())
+					dump->print_modules(std::cout);
+				else
+					std::cerr << "ERROR: Bad arguments" << std::endl;
+			}
+		},
+		{ "t", [&dump](const std::vector<std::string>& args)
+			{
+				if (args.empty())
+					dump->print_threads(std::cout);
+				else
+					std::cerr << "ERROR: Bad arguments" << std::endl;
+			}
+		},
 	};
 
-	minidump->print_summary(std::cout);
+	dump->print_summary(std::cout);
 
-	std::string line;
-	for (;;)
+	for (std::string line; ; )
 	{
 		std::cout << "?> ";
 		if (!std::getline(std::cin, line))
@@ -39,11 +50,28 @@ int main(int argc, char** argv)
 			std::cout << std::endl;
 			break;
 		}
-		const auto i = commands.find(line);
+
+		std::string command;
+		std::vector<std::string> args;
+		auto end = std::string::npos;
+		do
+		{
+			const auto begin = line.find_first_not_of(' ', end + 1);
+			if (begin == std::string::npos)
+				break;
+			end = line.find_first_of(' ', begin + 1);
+			auto&& part = line.substr(begin, end != std::string::npos ? end - begin : end);
+			if (command.empty())
+				command = std::move(part);
+			else
+				args.emplace_back(std::move(part));
+		} while (end != std::string::npos);
+
+		const auto i = commands.find(command);
 		if (i != commands.end())
-			i->second();
+			i->second(args);
 		else
-			std::cout << "Unknown command \"" << line << "\"" << std::endl;
+			std::cout << "Unknown command \"" << command << "\"" << std::endl;
 	}
 
 	return 0;

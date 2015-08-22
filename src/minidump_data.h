@@ -52,6 +52,12 @@ struct MinidumpData
 		Thread*  thread = nullptr;
 	};
 
+	struct SystemInfo
+	{
+		uint8_t     processors = 0;
+		std::string version_name;
+	};
+
 	time_t timestamp = 0;
 	uint32_t process_id = 0;
 	time_t process_create_time = 0;
@@ -62,6 +68,7 @@ struct MinidumpData
 	MemoryUsage memory_usage;
 	bool is_32bit = true;
 	std::unique_ptr<Exception> exception;
+	std::unique_ptr<SystemInfo> system_info;
 
 	//
 	static std::unique_ptr<MinidumpData> load(const std::string& file_name);

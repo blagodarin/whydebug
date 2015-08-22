@@ -299,31 +299,26 @@ struct MINIDUMP_EXCEPTION_STREAM
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-//
-enum : uint16_t
+// MINIDUMP_SYSTEM_INFO
+struct SystemInfo
 {
-	PROCESSOR_ARCHITECTURE_INTEL   = 0,
-	PROCESSOR_ARCHITECTURE_ARM     = 5,
-	PROCESSOR_ARCHITECTURE_IA64    = 6,
-	PROCESSOR_ARCHITECTURE_AMD64   = 9,
-	PROCESSOR_ARCHITECTURE_UNKNOWN = 0xffff,
-};
-
-//
-struct MINIDUMP_SYSTEM_INFO
-{
-	uint16_t ProcessorArchitecture;
+	enum : uint16_t
+	{
+		X86     = 0,      // PROCESSOR_ARCHITECTURE_INTEL
+		ARM     = 5,      // PROCESSOR_ARCHITECTURE_ARM
+		IA64    = 6,      // PROCESSOR_ARCHITECTURE_IA64
+		X64     = 9,      // PROCESSOR_ARCHITECTURE_AMD64
+		Unknown = 0xffff, // PROCESSOR_ARCHITECTURE_UNKNOWN
+	} ProcessorArchitecture;
 	uint16_t ProcessorLevel;
 	uint16_t ProcessorRevision;
-	union
+	uint8_t NumberOfProcessors;
+	enum : uint8_t
 	{
-		uint16_t Reserved0;
-		struct
-		{
-			uint8_t NumberOfProcessors;
-			uint8_t ProductType;
-		};
-	};
+		Workstation      = 1, // VER_NT_WORKSTATION
+		DomainController = 2, // VER_NT_DOMAIN_CONTROLLER
+		Server           = 3, // VER_NT_SERVER
+	} ProductType;
 	uint32_t MajorVersion;
 	uint32_t MinorVersion;
 	uint32_t BuildNumber;

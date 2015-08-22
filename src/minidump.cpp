@@ -101,6 +101,12 @@ void Minidump::print_summary(std::ostream& stream)
 			<< "Process user time: " << ::seconds_to_string(_data->process_user_time) << "\n"
 			<< "Process kernel time: " << ::seconds_to_string(_data->process_kernel_time) << "\n";
 	}
+	if (_data->system_info)
+	{
+		stream << "Number of processors: " << std::to_string(_data->system_info->processors) << "\n";
+		if (!_data->system_info->version_name.empty())
+			stream << "System version name: " << _data->system_info->version_name << "\n";
+	}
 }
 
 void Minidump::print_thread_call_stack(std::ostream& stream, const std::string& thread_index)

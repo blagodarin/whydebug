@@ -110,6 +110,27 @@ namespace
 		}
 	}
 
+	void load_system_info(MinidumpData& dump, File& file, const MINIDUMP_DIRECTORY& stream)
+	{
+		CHECK(!dump.system_info, "Duplicate system info");
+
+		SystemInfo system_info;
+		CHECK(stream.Location.DataSize >= sizeof system_info, "Bad system info stream");
+		CHECK(file.seek(stream.Location.Rva), "Bad system info offset");
+		CHECK(file.read(system_info), "Couldn't read system info");
+
+		dump.system_info = std::make_unique<MinidumpData::SystemInfo>();
+		dump.system_info->processors = system_info.NumberOfProcessors;
+		try
+		{
+			dump.system_info->version_name = ::to_ascii(::read_string(file, system_info.CSDVersionRva));
+		}
+		catch (const BadCheck& e)
+		{
+			std::cerr << "ERROR: " << e.what() << std::endl;
+		}
+	}
+
 	void load_thread_list(MinidumpData& dump, File& file, const MINIDUMP_DIRECTORY& stream)
 	{
 		CHECK(dump.threads.empty(), "Duplicate thread list");
@@ -256,6 +277,9 @@ std::unique_ptr<MinidumpData> MinidumpData::load(const std::string& file_name)
 			break;
 		case ExceptionStream:
 			load_exception(*dump, file, stream);
+			break;
+		case SystemInfoStream:
+			load_system_info(*dump, file, stream);
 			break;
 		case MiscInfoStream:
 			load_misc_info(*dump, file, stream);

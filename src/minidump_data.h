@@ -1,5 +1,6 @@
 #pragma once
 
+#include <map>
 #include <memory>
 #include <string>
 #include <vector>
@@ -58,6 +59,20 @@ struct MinidumpData
 		std::string version_name;
 	};
 
+	struct MemoryInfo
+	{
+		enum class Usage
+		{
+			Unknown, //
+			Image,   //
+			Stack,   // Thread stack.
+		};
+
+		uint64_t size = 0;               // Memory range size.
+		Usage    usage = Usage::Unknown; //
+		size_t   usage_index = 0;        // Module index for Image usage, thread index for Stack usage.
+	};
+
 	time_t timestamp = 0;
 	uint32_t process_id = 0;
 	time_t process_create_time = 0;
@@ -69,6 +84,7 @@ struct MinidumpData
 	bool is_32bit = true;
 	std::unique_ptr<Exception> exception;
 	std::unique_ptr<SystemInfo> system_info;
+	std::map<uint64_t, MemoryInfo> memory;
 
 	//
 	static std::unique_ptr<MinidumpData> load(const std::string& file_name);

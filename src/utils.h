@@ -33,6 +33,9 @@ inline std::string to_hex(uint64_t value, bool as_uint32)
 }
 
 //
+std::string to_hex_min(uint64_t);
+
+//
 std::string to_human_readable(uint64_t);
 
 //

@@ -20,6 +20,7 @@ public:
 	Minidump& operator=(Minidump&&) = default;
 
 	void print_exception_call_stack(std::ostream&);
+	void print_memory(std::ostream&);
 	void print_modules(std::ostream&);
 	void print_summary(std::ostream&);
 	void print_thread_call_stack(std::ostream&, const std::string& thread_index);

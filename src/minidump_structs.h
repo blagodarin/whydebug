@@ -265,8 +265,7 @@ struct MINIDUMP_MODULE_LIST
 //
 struct MINIDUMP_MEMORY_LIST
 {
-	uint32_t                   NumberOfMemoryRanges; //
-	MINIDUMP_MEMORY_DESCRIPTOR MemoryRanges[];       //
+	uint32_t NumberOfMemoryRanges; //
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

@@ -79,6 +79,13 @@ std::string to_hex(uint64_t value)
 	return buffer.data();
 }
 
+std::string to_hex_min(uint64_t value)
+{
+	std::array<char, 17> buffer;
+	::snprintf(buffer.data(), buffer.size(), "%" PRIx64, value);
+	return buffer.data();
+}
+
 std::string to_human_readable(uint64_t bytes)
 {
 	if (bytes < 1024)

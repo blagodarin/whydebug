@@ -70,6 +70,35 @@ void Minidump::print_exception_call_stack(std::ostream& stream)
 	::print_call_stack(stream, *_data, *_data->exception->thread);
 }
 
+void Minidump::print_memory(std::ostream& stream)
+{
+	const auto usage_to_string = [this](const MinidumpData::MemoryInfo& memory_info) -> std::string
+	{
+		switch (memory_info.usage)
+		{
+		case MinidumpData::MemoryInfo::Usage::Image:
+			return _data->modules[memory_info.usage_index].file_name;
+		case MinidumpData::MemoryInfo::Usage::Stack:
+			return "< stack " + std::to_string(memory_info.usage_index) + " >";
+		default:
+			return "Unknown";
+		}
+	};
+
+	std::vector<std::vector<std::string>> table;
+	table.push_back({"RANGE", "SIZE", "USAGE"});
+	for (const auto& memory_range : _data->memory)
+	{
+		table.push_back({
+			::to_hex(memory_range.first, _data->is_32bit) + " - " + ::to_hex(memory_range.first + memory_range.second.size, _data->is_32bit),
+			::to_hex_min(memory_range.second.size),
+			usage_to_string(memory_range.second),
+		});
+	}
+	for (const auto& row : ::format_table(table))
+		stream << '\t' << row << '\n';
+}
+
 void Minidump::print_modules(std::ostream& stream)
 {
 	std::vector<std::vector<std::string>> table;

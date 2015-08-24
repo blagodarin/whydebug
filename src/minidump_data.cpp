@@ -56,6 +56,29 @@ namespace
 		// TODO: Load processor power info (MINIDUMP_MISC_INFO_2).
 	}
 
+	void load_memory_list(MinidumpData& dump, File& file, const MINIDUMP_DIRECTORY& stream)
+	{
+		CHECK(dump.memory.empty(), "Duplicate memory list");
+
+		MINIDUMP_MEMORY_LIST header;
+		CHECK(stream.Location.DataSize >= sizeof header, "Bad memory list stream");
+		CHECK(file.seek(stream.Location.Rva), "Bad memory list offset");
+		CHECK(file.read(header), "Couldn't read memory list header");
+		CHECK_GE(header.NumberOfMemoryRanges, 0, "Bad memory list size");
+
+		std::vector<MINIDUMP_MEMORY_DESCRIPTOR> memory(header.NumberOfMemoryRanges);
+		const auto memory_list_size = memory.size() * sizeof(MINIDUMP_MEMORY_DESCRIPTOR);
+		CHECK(file.read(memory.data(), memory_list_size) == memory_list_size, "Couldn't read memory list");
+		for (const auto& memory_range : memory)
+		{
+			MinidumpData::MemoryInfo m;
+			m.size = memory_range.Memory.DataSize;
+
+			dump.memory.emplace(memory_range.StartOfMemoryRange, std::move(m));
+			dump.is_32bit = dump.is_32bit && memory_range.StartOfMemoryRange + m.size <= UINT32_MAX;
+		}
+	}
+
 	void load_module_list(MinidumpData& dump, File& file, const MINIDUMP_DIRECTORY& stream)
 	{
 		const auto version_to_string = [](uint32_t ms, uint32_t ls) -> std::string
@@ -275,6 +298,9 @@ std::unique_ptr<MinidumpData> MinidumpData::load(const std::string& file_name)
 		case ModuleListStream:
 			load_module_list(*dump, file, stream);
 			break;
+		case MemoryListStream:
+			load_memory_list(*dump, file, stream);
+			break;
 		case ExceptionStream:
 			load_exception(*dump, file, stream);
 			break;
@@ -302,6 +328,32 @@ std::unique_ptr<MinidumpData> MinidumpData::load(const std::string& file_name)
 		});
 		CHECK(i != dump->threads.end(), "Exception in unknown thread");
 		dump->exception->thread = &*i;
+	}
+
+	for (auto& memory_range : dump->memory)
+	{
+		for (const auto& module : dump->modules)
+		{
+			if (memory_range.first >= module.image_base
+				&& memory_range.first + memory_range.second.size <= module.image_base + module.image_size)
+			{
+				memory_range.second.usage = MinidumpData::MemoryInfo::Usage::Image;
+				memory_range.second.usage_index = &module - &dump->modules.front() + 1;
+				break;
+			}
+		}
+		if (memory_range.second.usage != MinidumpData::MemoryInfo::Usage::Unknown)
+			continue;
+		for (const auto& thread : dump->threads)
+		{
+			if (memory_range.first >= thread.stack_base
+				&& memory_range.first + memory_range.second.size <= thread.stack_base + thread.stack_size)
+			{
+				memory_range.second.usage = MinidumpData::MemoryInfo::Usage::Stack;
+				memory_range.second.usage_index = &thread - &dump->threads.front() + 1;
+				break;
+			}
+		}
 	}
 
 	return dump;

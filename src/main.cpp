@@ -26,6 +26,14 @@ int main(int argc, char** argv)
 
 	const std::unordered_map<std::string, std::function<void(const std::vector<std::string>&)>> commands =
 	{
+		{ "a", [&dump](const std::vector<std::string>& args)
+			{
+				if (args.empty())
+					dump->print_memory(std::cout);
+				else
+					std::cerr << "ERROR: Bad arguments" << std::endl;
+			}
+		},
 		{ "m", [&dump](const std::vector<std::string>& args)
 			{
 				if (args.empty())

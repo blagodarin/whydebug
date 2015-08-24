@@ -72,10 +72,10 @@ namespace
 		for (const auto& memory_range : memory)
 		{
 			MinidumpData::MemoryInfo m;
-			m.size = memory_range.Memory.DataSize;
+			m.end = memory_range.StartOfMemoryRange + memory_range.Memory.DataSize;
 
 			dump.memory.emplace(memory_range.StartOfMemoryRange, std::move(m));
-			dump.is_32bit = dump.is_32bit && memory_range.StartOfMemoryRange + m.size <= UINT32_MAX;
+			dump.is_32bit = dump.is_32bit && m.end <= uint64_t{UINT32_MAX} + 1;
 		}
 	}
 
@@ -109,7 +109,7 @@ namespace
 			m.product_version = version_to_string(module.VersionInfo.dwProductVersionMS, module.VersionInfo.dwProductVersionLS);
 			m.timestamp = ::time_t_to_string(module.TimeDateStamp);
 			m.image_base = module.BaseOfImage;
-			m.image_size = module.SizeOfImage;
+			m.image_end = module.BaseOfImage + module.SizeOfImage;
 			if (module.CvRecord.DataSize > 0)
 			{
 				try
@@ -127,9 +127,9 @@ namespace
 				}
 			}
 			dump.modules.emplace_back(std::move(m));
-			dump.memory_usage.all_images += m.image_size;
-			dump.memory_usage.max_image = std::max(dump.memory_usage.max_image, m.image_size);
-			dump.is_32bit = dump.is_32bit && m.image_base + m.image_size <= UINT32_MAX;
+			dump.memory_usage.all_images += m.image_end - m.image_base;
+			dump.memory_usage.max_image = std::max<uint64_t>(dump.memory_usage.max_image, m.image_end - m.image_base);
+			dump.is_32bit = dump.is_32bit && m.image_end <= uint64_t{UINT32_MAX} + 1;
 		}
 	}
 
@@ -174,7 +174,7 @@ namespace
 			MinidumpData::Thread t;
 			t.id = thread.ThreadId;
 			t.stack_base = thread.Stack.StartOfMemoryRange;
-			t.stack_size = thread.Stack.Memory.DataSize;
+			t.stack_end = thread.Stack.StartOfMemoryRange + thread.Stack.Memory.DataSize;
 
 			try
 			{
@@ -192,14 +192,14 @@ namespace
 				std::cerr << "ERROR: " << e.what() << std::endl;
 			}
 
-			t.stack.reset(new uint8_t[t.stack_size]);
+			t.stack.reset(new uint8_t[t.stack_end - t.stack_base]);
 			CHECK(file.seek(thread.Stack.Memory.Rva), "Bad thread " << index << " stack offset");
-			CHECK(file.read(t.stack.get(), t.stack_size), "Couldn't read thread " << index << " stack");
+			CHECK(file.read(t.stack.get(), t.stack_end - t.stack_base), "Couldn't read thread " << index << " stack");
 
 			dump.threads.emplace_back(std::move(t));
-			dump.memory_usage.all_stacks += t.stack_size;
-			dump.memory_usage.max_stack = std::max(dump.memory_usage.max_stack, t.stack_size);
-			dump.is_32bit = dump.is_32bit && t.stack_base + t.stack_size <= UINT32_MAX;
+			dump.memory_usage.all_stacks += t.stack_base + t.stack_end;
+			dump.memory_usage.max_stack = std::max<uint64_t>(dump.memory_usage.max_stack, t.stack_base + t.stack_end);
+			dump.is_32bit = dump.is_32bit && t.stack_end <= uint64_t{UINT32_MAX} + 1;
 		}
 	}
 
@@ -237,7 +237,7 @@ namespace
 			j->start_address = entry.StartAddress;
 			j->dumping = entry.DumpFlags & MINIDUMP_THREAD_INFO_WRITING_THREAD;
 
-			dump.is_32bit = dump.is_32bit && j->start_address <= UINT32_MAX;
+			dump.is_32bit = dump.is_32bit && j->start_address <= uint64_t{UINT32_MAX} + 1;
 		}
 	}
 }
@@ -334,8 +334,7 @@ std::unique_ptr<MinidumpData> MinidumpData::load(const std::string& file_name)
 	{
 		for (const auto& module : dump->modules)
 		{
-			if (memory_range.first >= module.image_base
-				&& memory_range.first + memory_range.second.size <= module.image_base + module.image_size)
+			if (memory_range.first >= module.image_base && memory_range.second.end <= module.image_end)
 			{
 				memory_range.second.usage = MinidumpData::MemoryInfo::Usage::Image;
 				memory_range.second.usage_index = &module - &dump->modules.front() + 1;
@@ -346,8 +345,7 @@ std::unique_ptr<MinidumpData> MinidumpData::load(const std::string& file_name)
 			continue;
 		for (const auto& thread : dump->threads)
 		{
-			if (memory_range.first >= thread.stack_base
-				&& memory_range.first + memory_range.second.size <= thread.stack_base + thread.stack_size)
+			if (memory_range.first >= thread.stack_base && memory_range.second.end <= thread.stack_end)
 			{
 				memory_range.second.usage = MinidumpData::MemoryInfo::Usage::Stack;
 				memory_range.second.usage_index = &thread - &dump->threads.front() + 1;

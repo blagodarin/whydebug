@@ -13,7 +13,7 @@ namespace
 		std::string result = ::to_hex(address, dump.is_32bit);
 		const auto i = std::find_if(dump.modules.begin(), dump.modules.end(), [address](const auto& module)
 		{
-			return address >= module.image_base && address < module.image_base + module.image_size;
+			return address >= module.image_base && address < module.image_end;
 		});
 		if (i != dump.modules.end())
 			result = i->file_name + "!" + result;
@@ -25,7 +25,7 @@ namespace
 		std::vector<std::pair<uint32_t, uint32_t>> chain;
 		auto ebp = thread.context.x86.ebp;
 		chain.emplace_back(ebp, thread.context.x86.eip);
-		while (ebp >= thread.stack_base && ebp + 2 * sizeof(ebp) <= thread.stack_base + thread.stack_size)
+		while (ebp >= thread.stack_base && ebp + 2 * sizeof(ebp) < thread.stack_end)
 		{
 			const auto stack_offset = ebp - thread.stack_base;
 			const auto return_address = reinterpret_cast<uint32_t&>(thread.stack[stack_offset + sizeof ebp]);
@@ -90,8 +90,8 @@ void Minidump::print_memory(std::ostream& stream)
 	for (const auto& memory_range : _data->memory)
 	{
 		table.push_back({
-			::to_hex(memory_range.first, _data->is_32bit) + " - " + ::to_hex(memory_range.first + memory_range.second.size, _data->is_32bit),
-			::to_hex_min(memory_range.second.size),
+			::to_hex(memory_range.first, _data->is_32bit) + " - " + ::to_hex(memory_range.second.end, _data->is_32bit),
+			::to_hex_min(memory_range.second.end - memory_range.first),
 			usage_to_string(memory_range.second),
 		});
 	}
@@ -109,7 +109,7 @@ void Minidump::print_modules(std::ostream& stream)
 			std::to_string(&module - &_data->modules.front() + 1),
 			module.file_name,
 			module.product_version,
-			::to_hex(module.image_base, _data->is_32bit) + " - " + ::to_hex(module.image_base + module.image_size, _data->is_32bit),
+			::to_hex(module.image_base, _data->is_32bit) + " - " + ::to_hex(module.image_end, _data->is_32bit),
 			module.pdb_name
 		});
 	}
@@ -165,7 +165,7 @@ void Minidump::print_threads(std::ostream& stream)
 		table.push_back({
 			std::to_string(&thread - &_data->threads.front() + 1),
 			::to_hex(thread.id),
-			::to_hex(thread.stack_base, _data->is_32bit) + " - " + ::to_hex(thread.stack_base + thread.stack_size, _data->is_32bit),
+			::to_hex(thread.stack_base, _data->is_32bit) + " - " + ::to_hex(thread.stack_end, _data->is_32bit),
 			decode_code_address(*_data, thread.start_address),
 			decode_code_address(*_data, thread.context.x86.eip),
 			::to_hex(thread.context.x86.esp)

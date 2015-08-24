@@ -25,14 +25,14 @@ struct MinidumpData
 		std::string pdb_path;
 		std::string pdb_name;
 		uint64_t    image_base = 0;
-		uint32_t    image_size = 0;
+		uint64_t    image_end = 0;
 	};
 
 	struct Thread
 	{
 		uint32_t id = 0;
 		uint64_t stack_base = 0;
-		uint32_t stack_size = 0;
+		uint64_t stack_end = 0;
 		uint64_t start_address = 0;
 		bool dumping = false;
 		union
@@ -68,7 +68,7 @@ struct MinidumpData
 			Stack,   // Thread stack.
 		};
 
-		uint64_t size = 0;               // Memory range size.
+		uint64_t end = 0;                // Memory range end.
 		Usage    usage = Usage::Unknown; //
 		size_t   usage_index = 0;        // Module index for Image usage, thread index for Stack usage.
 	};

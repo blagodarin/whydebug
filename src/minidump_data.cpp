@@ -15,12 +15,12 @@ namespace
 		return { static_cast<T*>(::calloc(size, 1)), ::free };
 	}
 
-	std::u16string read_string(File& file, minidump::RVA rva)
+	std::u16string read_string(File& file, uint32_t offset)
 	{
-		CHECK(file.seek(rva), "Bad string offset");
+		CHECK(file.seek(offset), "Bad string offset");
 		minidump::StringHeader header;
 		CHECK(file.read(header), "Couldn't read string header");
-		std::u16string string(header.Length / 2, u' ');
+		std::u16string string(header.size / 2, u' ');
 		CHECK(file.read(const_cast<char16_t*>(string.data()), string.size() * sizeof(char16_t)), "Couldn't read string");
 		return std::move(string);
 	}
@@ -30,19 +30,19 @@ namespace
 		CHECK(!dump.exception, "Duplicate exception");
 
 		minidump::ExceptionStream exception;
-		CHECK(stream.location.DataSize >= sizeof exception, "Bad exception stream");
-		CHECK(file.seek(stream.location.Rva), "Bad exception offset");
+		CHECK(stream.location.size >= sizeof exception, "Bad exception stream");
+		CHECK(file.seek(stream.location.offset), "Bad exception offset");
 		CHECK(file.read(exception), "Couldn't read exception");
 
 		dump.exception = std::make_unique<MinidumpData::Exception>();
-		dump.exception->thread_id = exception.ThreadId;
+		dump.exception->thread_id = exception.thread_id;
 	}
 
 	void load_misc_info(MinidumpData& dump, File& file, const minidump::Stream& stream)
 	{
 		minidump::MiscInfo misc_info;
-		CHECK(stream.location.DataSize >= sizeof misc_info, "Bad misc info stream");
-		CHECK(file.seek(stream.location.Rva), "Bad misc info offset");
+		CHECK(stream.location.size >= sizeof misc_info, "Bad misc info stream");
+		CHECK(file.seek(stream.location.offset), "Bad misc info offset");
 		CHECK(file.read(misc_info), "Couldn't read misc info");
 
 		if (misc_info.flags & minidump::MiscInfo::ProcessId)
@@ -61,20 +61,20 @@ namespace
 		CHECK(dump.memory.empty(), "Duplicate memory list");
 
 		minidump::MemoryListHeader header;
-		CHECK(stream.location.DataSize >= sizeof header, "Bad memory list stream");
-		CHECK(file.seek(stream.location.Rva), "Bad memory list offset");
+		CHECK(stream.location.size >= sizeof header, "Bad memory list stream");
+		CHECK(file.seek(stream.location.offset), "Bad memory list offset");
 		CHECK(file.read(header), "Couldn't read memory list header");
-		CHECK_GE(header.NumberOfMemoryRanges, 0, "Bad memory list size");
+		CHECK_GE(header.entry_count, 0, "Bad memory list size");
 
-		std::vector<minidump::MemoryRange> memory(header.NumberOfMemoryRanges);
+		std::vector<minidump::MemoryRange> memory(header.entry_count);
 		const auto memory_list_size = memory.size() * sizeof(minidump::MemoryRange);
 		CHECK(file.read(memory.data(), memory_list_size) == memory_list_size, "Couldn't read memory list");
 		for (const auto& memory_range : memory)
 		{
 			MinidumpData::MemoryInfo m;
-			m.end = memory_range.StartOfMemoryRange + memory_range.Memory.DataSize;
+			m.end = memory_range.base + memory_range.location.size;
 
-			dump.memory.emplace(memory_range.StartOfMemoryRange, std::move(m));
+			dump.memory.emplace(memory_range.base, std::move(m));
 			dump.is_32bit = dump.is_32bit && m.end <= uint64_t{UINT32_MAX} + 1;
 		}
 	}
@@ -92,32 +92,32 @@ namespace
 		CHECK(dump.modules.empty(), "Duplicate module list");
 
 		minidump::ModuleListHeader header;
-		CHECK(stream.location.DataSize >= sizeof header, "Bad module list stream");
-		CHECK(file.seek(stream.location.Rva), "Bad module list offset");
+		CHECK(stream.location.size >= sizeof header, "Bad module list stream");
+		CHECK(file.seek(stream.location.offset), "Bad module list offset");
 		CHECK(file.read(header), "Couldn't read module list header");
-		CHECK_GE(header.NumberOfModules, 0, "Bad module list size");
+		CHECK_GE(header.entry_count, 0, "Bad module list size");
 
-		std::vector<minidump::Module> modules(header.NumberOfModules);
+		std::vector<minidump::Module> modules(header.entry_count);
 		const auto module_list_size = modules.size() * sizeof(minidump::Module);
 		CHECK(file.read(modules.data(), module_list_size) == module_list_size, "Couldn't read module list");
 		for (const auto& module : modules)
 		{
 			MinidumpData::Module m;
-			m.file_path = ::to_ascii(::read_string(file, module.ModuleNameRva));
+			m.file_path = ::to_ascii(::read_string(file, module.name_offset));
 			m.file_name = m.file_path.substr(m.file_path.find_last_of('\\') + 1);
-			m.file_version = version_to_string(module.VersionInfo.dwFileVersionMS, module.VersionInfo.dwFileVersionLS);
-			m.product_version = version_to_string(module.VersionInfo.dwProductVersionMS, module.VersionInfo.dwProductVersionLS);
-			m.timestamp = ::time_t_to_string(module.TimeDateStamp);
-			m.image_base = module.BaseOfImage;
-			m.image_end = module.BaseOfImage + module.SizeOfImage;
-			if (module.CvRecord.DataSize > 0)
+			m.file_version = version_to_string(module.version_info.dwFileVersionMS, module.version_info.dwFileVersionLS);
+			m.product_version = version_to_string(module.version_info.dwProductVersionMS, module.version_info.dwProductVersionLS);
+			m.timestamp = ::time_t_to_string(module.time_date_stamp);
+			m.image_base = module.image_base;
+			m.image_end = module.image_base + module.image_size;
+			if (module.cv_record.size > 0)
 			{
 				try
 				{
-					CHECK_GE(module.CvRecord.DataSize, minidump::CodeViewRecordPDB70::MinSize, "Bad PDB reference size");
-					const auto& cv = ::allocate_pod<minidump::CodeViewRecordPDB70>(module.CvRecord.DataSize + 1);
-					CHECK(file.seek(module.CvRecord.Rva), "Bad PDB reference");
-					CHECK(file.read(cv.get(), module.CvRecord.DataSize), "Couldn't read PDB reference");
+					CHECK_GE(module.cv_record.size, minidump::CodeViewRecordPDB70::MinSize, "Bad PDB reference size");
+					const auto& cv = ::allocate_pod<minidump::CodeViewRecordPDB70>(module.cv_record.size + 1);
+					CHECK(file.seek(module.cv_record.offset), "Bad PDB reference");
+					CHECK(file.read(cv.get(), module.cv_record.size), "Couldn't read PDB reference");
 					m.pdb_path = cv->pdb_name;
 					m.pdb_name = m.pdb_path.substr(m.pdb_path.find_last_of('\\') + 1);
 				}
@@ -138,8 +138,8 @@ namespace
 		CHECK(!dump.system_info, "Duplicate system info");
 
 		minidump::SystemInfo system_info;
-		CHECK(stream.location.DataSize >= sizeof system_info, "Bad system info stream");
-		CHECK(file.seek(stream.location.Rva), "Bad system info offset");
+		CHECK(stream.location.size >= sizeof system_info, "Bad system info stream");
+		CHECK(file.seek(stream.location.offset), "Bad system info offset");
 		CHECK(file.read(system_info), "Couldn't read system info");
 
 		dump.system_info = std::make_unique<MinidumpData::SystemInfo>();
@@ -159,12 +159,12 @@ namespace
 		CHECK(dump.threads.empty(), "Duplicate thread list");
 
 		minidump::ThreadListHeader header;
-		CHECK(stream.location.DataSize >= sizeof header, "Bad thread list stream");
-		CHECK(file.seek(stream.location.Rva), "Bad thread list offset");
+		CHECK(stream.location.size >= sizeof header, "Bad thread list stream");
+		CHECK(file.seek(stream.location.offset), "Bad thread list offset");
 		CHECK(file.read(header), "Couldn't read thread list header");
-		CHECK_GE(header.NumberOfThreads, 0, "Bad thread list size");
+		CHECK_GE(header.entry_count, 0, "Bad thread list size");
 
-		std::vector<minidump::Thread> threads(header.NumberOfThreads);
+		std::vector<minidump::Thread> threads(header.entry_count);
 		const auto thread_list_size = threads.size() * sizeof(minidump::Thread);
 		CHECK(file.read(threads.data(), thread_list_size) == thread_list_size, "Couldn't read thread list");
 		for (const auto& thread : threads)
@@ -173,14 +173,14 @@ namespace
 
 			MinidumpData::Thread t;
 			t.id = thread.ThreadId;
-			t.stack_base = thread.Stack.StartOfMemoryRange;
-			t.stack_end = thread.Stack.StartOfMemoryRange + thread.Stack.Memory.DataSize;
+			t.stack_base = thread.stack.base;
+			t.stack_end = thread.stack.base + thread.stack.location.size;
 
 			try
 			{
 				minidump::ContextX86 context;
-				CHECK_EQ(thread.ThreadContext.DataSize, sizeof context, "Bad thread context size");
-				CHECK(file.seek(thread.ThreadContext.Rva), "Bad thread " << index << " context offset");
+				CHECK_EQ(thread.context.size, sizeof context, "Bad thread context size");
+				CHECK(file.seek(thread.context.offset), "Bad thread " << index << " context offset");
 				CHECK(file.read(context), "Couldn't read thread " << index << " context");
 				CHECK(::has_flags(context.flags, minidump::ContextX86::I386 | minidump::ContextX86::Control), "Bad thread context");
 				t.context.x86.eip = context.eip;
@@ -193,7 +193,7 @@ namespace
 			}
 
 			t.stack.reset(new uint8_t[t.stack_end - t.stack_base]);
-			CHECK(file.seek(thread.Stack.Memory.Rva), "Bad thread " << index << " stack offset");
+			CHECK(file.seek(thread.stack.location.offset), "Bad thread " << index << " stack offset");
 			CHECK(file.read(t.stack.get(), t.stack_end - t.stack_base), "Couldn't read thread " << index << " stack");
 
 			dump.threads.emplace_back(std::move(t));
@@ -212,30 +212,30 @@ namespace
 		}
 
 		minidump::ThreadInfoListHeader header;
-		CHECK_GE(stream.location.DataSize, sizeof header, "Bad thread info list stream");
-		CHECK(file.seek(stream.location.Rva), "Bad thread info list offset");
+		CHECK_GE(stream.location.size, sizeof header, "Bad thread info list stream");
+		CHECK(file.seek(stream.location.offset), "Bad thread info list offset");
 		CHECK(file.read(header), "Couldn't read thread info list header");
-		CHECK_GE(header.SizeOfHeader, sizeof header, "Bad thread info list header size");
+		CHECK_GE(header.header_size, sizeof header, "Bad thread info list header size");
 
-		minidump::ThreadInfo entry;
-		CHECK_GE(header.SizeOfEntry, sizeof entry, "Bad thread info size");
-		const auto base = stream.location.Rva + header.SizeOfHeader;
-		for (uint32_t i = 0; i < header.NumberOfEntries; ++i)
+		minidump::ThreadInfo thread_info;
+		CHECK_GE(header.entry_size, sizeof thread_info, "Bad thread info size");
+		const auto base = stream.location.offset + header.header_size;
+		for (uint32_t i = 0; i < header.entry_count; ++i)
 		{
-			CHECK(file.seek(base + i * header.SizeOfEntry), "Bad thread info list");
-			CHECK(file.read(entry), "Couldn't read thread info entry");
+			CHECK(file.seek(base + i * header.entry_size), "Bad thread info list");
+			CHECK(file.read(thread_info), "Couldn't read thread info entry");
 
-			const auto j = std::find_if(dump.threads.begin(), dump.threads.end(), [&entry](const auto& thread)
+			const auto j = std::find_if(dump.threads.begin(), dump.threads.end(), [&thread_info](const auto& thread)
 			{
-				return thread.id == entry.ThreadId;
+				return thread.id == thread_info.ThreadId;
 			});
 			if (j == dump.threads.end())
 			{
-				std::cerr << "ERROR: Thread info for unknown thread " << ::to_hex(entry.ThreadId) << std::endl;
+				std::cerr << "ERROR: Thread info for unknown thread " << ::to_hex(thread_info.ThreadId) << std::endl;
 				continue;
 			}
-			j->start_address = entry.StartAddress;
-			j->dumping = entry.DumpFlags & minidump::MINIDUMP_THREAD_INFO_WRITING_THREAD;
+			j->start_address = thread_info.StartAddress;
+			j->dumping = thread_info.DumpFlags & minidump::MINIDUMP_THREAD_INFO_WRITING_THREAD;
 
 			dump.is_32bit = dump.is_32bit && j->start_address <= uint64_t{UINT32_MAX} + 1;
 		}

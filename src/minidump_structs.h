@@ -6,44 +6,24 @@
 
 namespace minidump
 {
-	//
-	using RVA = uint32_t;
-
-	//
-	using RVA64 = uint64_t;
-
 	// (MINIDUMP_LOCATION_DESCRIPTOR).
 	struct Location
 	{
-		uint32_t DataSize; //
-		RVA      Rva;      //
-	};
-
-	// (MINIDUMP_LOCATION_DESCRIPTOR64).
-	struct Location64
-	{
-		uint64_t DataSize; //
-		RVA64    Rva;      //
+		uint32_t size;   //
+		uint32_t offset; //
 	};
 
 	// (MINIDUMP_MEMORY_DESCRIPTOR).
 	struct MemoryRange
 	{
-		uint64_t StartOfMemoryRange; //
-		Location Memory;             //
-	};
-
-	// (MINIDUMP_MEMORY_DESCRIPTOR64).
-	struct MemoryRange64
-	{
-		uint64_t StartOfMemoryRange; //
-		uint64_t DataSize;           //
+		uint64_t base;     //
+		Location location; //
 	};
 
 	// UTF-16 string header (MINIDUMP_STRING).
 	struct StringHeader
 	{
-		uint32_t Length; // Size of the string in *bytes*, excluding 0-terminator.
+		uint32_t size; // Size of the string in *bytes*, excluding 0-terminator.
 	};
 
 	//
@@ -84,7 +64,7 @@ namespace minidump
 		uint32_t signature;            //
 		uint32_t version;              // & 0xffff == 0xa793.
 		uint32_t number_of_streams;    //
-		RVA      stream_directory_rva; //
+		uint32_t stream_directory_rva; //
 		uint32_t check_sum;            //
 		uint32_t time_date_stamp;      //
 		uint64_t flags;                //
@@ -132,19 +112,19 @@ namespace minidump
 	// Thread list header (MINIDUMP_THREAD_LIST).
 	struct ThreadListHeader
 	{
-		uint32_t NumberOfThreads; //
+		uint32_t entry_count; //
 	};
 
 	// Thread list entry (MINIDUMP_THREAD).
 	struct Thread
 	{
-		uint32_t    ThreadId;      //
-		uint32_t    SuspendCount;  //
-		uint32_t    PriorityClass; //
-		uint32_t    Priority;      //
-		uint64_t    Teb;           //
-		MemoryRange Stack;         //
-		Location    ThreadContext; //
+		uint32_t    ThreadId;       //
+		uint32_t    SuspendCount;   //
+		uint32_t    priority_class; //
+		uint32_t    priority;       //
+		uint64_t    teb;            //
+		MemoryRange stack;          //
+		Location    context;        //
 	};
 
 	// (CONTEXT x86).
@@ -298,21 +278,21 @@ namespace minidump
 	// Module list header (MINIDUMP_MODULE_LIST).
 	struct ModuleListHeader
 	{
-		uint32_t NumberOfModules; //
+		uint32_t entry_count; //
 	};
 
 	// Module list entry (MINIDUMP_MODULE).
 	struct Module
 	{
-		uint64_t         BaseOfImage;   //
-		uint32_t         SizeOfImage;   //
-		uint32_t         CheckSum;      //
-		uint32_t         TimeDateStamp; //
-		RVA              ModuleNameRva; //
-		VS_FIXEDFILEINFO VersionInfo;   //
-		Location         CvRecord;      //
-		Location         MiscRecord;    //
-		uint32_t         Reserved[4];   //
+		uint64_t         image_base;      //
+		uint32_t         image_size;      //
+		uint32_t         check_sum;       //
+		uint32_t         time_date_stamp; //
+		uint32_t         name_offset;     //
+		VS_FIXEDFILEINFO version_info;    //
+		Location         cv_record;       //
+		Location         misc_record;     //
+		uint32_t         reserved[4];     //
 	};
 
 	//
@@ -334,7 +314,7 @@ namespace minidump
 	// Memory list header (MINIDUMP_MEMORY_LIST).
 	struct MemoryListHeader
 	{
-		uint32_t NumberOfMemoryRanges; //
+		uint32_t entry_count; //
 	};
 
 	/////////////////////
@@ -356,10 +336,10 @@ namespace minidump
 	// (MINIDUMP_EXCEPTION_STREAM).
 	struct ExceptionStream
 	{
-		uint32_t  ThreadId;        //
+		uint32_t  thread_id;       //
 		uint32_t  __alignment;     //
 		Exception ExceptionRecord; //
-		Location  ThreadContext;   //
+		Location  thread_context;  //
 	};
 
 	//////////////////////
@@ -390,7 +370,7 @@ namespace minidump
 		uint32_t MinorVersion;
 		uint32_t BuildNumber;
 		uint32_t PlatformId;
-		RVA      CSDVersionRva;
+		uint32_t CSDVersionRva;
 		union
 		{
 			uint32_t Reserved1;
@@ -423,7 +403,7 @@ namespace minidump
 	// (MINIDUMP_THREAD_EX_LIST).
 	struct ThreadExListHeader
 	{
-		uint32_t NumberOfThreads; //
+		uint32_t entry_count; //
 	};
 
 	// (MINIDUMP_THREAD_EX).
@@ -446,8 +426,15 @@ namespace minidump
 	// (MINIDUMP_MEMORY64_LIST).
 	struct Memory64ListHeader
 	{
-		uint64_t NumberOfMemoryRanges; //
-		RVA64    BaseRva;              //
+		uint64_t entry_count; //
+		uint64_t BaseRva;     //
+	};
+
+	// (MINIDUMP_MEMORY_DESCRIPTOR64).
+	struct Memory64Range
+	{
+		uint64_t base; //
+		uint64_t size; //
 	};
 
 	//////////////////////
@@ -458,8 +445,8 @@ namespace minidump
 	struct MINIDUMP_HANDLE_DESCRIPTOR
 	{
 		uint64_t Handle;        //
-		RVA      TypeNameRva;   //
-		RVA      ObjectNameRva; //
+		uint32_t TypeNameRva;   //
+		uint32_t ObjectNameRva; //
 		uint32_t Attributes;    //
 		uint32_t GrantedAccess; //
 		uint32_t HandleCount;   //
@@ -480,7 +467,7 @@ namespace minidump
 	//
 	struct MINIDUMP_HANDLE_OBJECT_INFORMATION
 	{
-		RVA                                     NextInfoRva; // 0 if there are no more elements in the list.
+		uint32_t                                NextInfoRva; // 0 if there are no more elements in the list.
 		MINIDUMP_HANDLE_OBJECT_INFORMATION_TYPE InfoType;    //
 		uint32_t                                SizeOfInfo;  //
 	};
@@ -489,13 +476,13 @@ namespace minidump
 	struct MINIDUMP_HANDLE_DESCRIPTOR_2
 	{
 		uint64_t Handle;        //
-		RVA      TypeNameRva;   //
-		RVA      ObjectNameRva; //
+		uint32_t TypeNameRva;   //
+		uint32_t ObjectNameRva; //
 		uint32_t Attributes;    //
 		uint32_t GrantedAccess; //
 		uint32_t HandleCount;   //
 		uint32_t PointerCount;  //
-		RVA      ObjectInfoRva; // 0 if there is no extra information.
+		uint32_t ObjectInfoRva; // 0 if there is no extra information.
 		uint32_t Reserved0;     //
 	};
 
@@ -540,19 +527,19 @@ namespace minidump
 	// (MINIDUMP_UNLOADED_MODULE_LIST).
 	struct UnloadedModuleListHeader
 	{
-		uint32_t SizeOfHeader;    //
-		uint32_t SizeOfEntry;     //
-		uint32_t NumberOfEntries; //
+		uint32_t header_size; //
+		uint32_t entry_size;  //
+		uint32_t entry_count; //
 	};
 
 	// (MINIDUMP_UNLOADED_MODULE).
 	struct UnloadedModule
 	{
-		uint64_t BaseOfImage;   //
-		uint32_t SizeOfImage;   //
-		uint32_t CheckSum;      //
-		uint32_t TimeDateStamp; //
-		RVA      ModuleNameRva; //
+		uint64_t image_base;      //
+		uint32_t image_size;      //
+		uint32_t check_sum;       //
+		uint32_t time_date_stamp; //
+		uint32_t name_offset;     //
 	};
 
 	////////////////////
@@ -598,9 +585,9 @@ namespace minidump
 	// (MINIDUMP_MEMORY_INFO_LIST).
 	struct MemoryInfoListHeader
 	{
-		uint32_t SizeOfHeader;    //
-		uint32_t SizeOfEntry;     //
-		uint64_t NumberOfEntries; //
+		uint32_t header_size; //
+		uint32_t entry_size;  //
+		uint64_t entry_count; //
 	};
 
 	//
@@ -651,9 +638,9 @@ namespace minidump
 	// Thread information list header (MINIDUMP_THREAD_INFO_LIST).
 	struct ThreadInfoListHeader
 	{
-		uint32_t SizeOfHeader;    //
-		uint32_t SizeOfEntry;     //
-		uint32_t NumberOfEntries; //
+		uint32_t header_size; //
+		uint32_t entry_size;  //
+		uint32_t entry_count; //
 	};
 
 	// Thread information list entry (MINIDUMP_THREAD_INFO).

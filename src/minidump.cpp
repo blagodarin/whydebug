@@ -1,5 +1,6 @@
 #include "minidump.h"
 #include "minidump_data.h"
+#include "table.h"
 #include "utils.h"
 #include <algorithm>
 #include <iostream>
@@ -35,22 +36,20 @@ namespace
 		return chain;
 	}
 
-	void print_call_stack(std::ostream& stream, const MinidumpData& dump, const MinidumpData::Thread& thread)
+	Table print_call_stack(const MinidumpData& dump, const MinidumpData::Thread& thread)
 	{
 		if (!thread.start_address || !thread.context.x86.eip || !thread.context.x86.ebp)
-			return;
-		std::vector<std::vector<std::string>> table;
-		table.push_back({"EBP", "FUNCTION"});
+			return {};
+		Table table({"EBP", "FUNCTION"});
 		for (const auto& entry : build_call_chain(thread))
 		{
 			table.push_back({
 				::to_hex(entry.first, dump.is_32bit),
 				::to_hex(entry.second, dump.is_32bit),
-				decode_code_address(dump, entry.second)
+				decode_code_address(dump, entry.second),
 			});
 		}
-		for (const auto& row : ::format_table(table))
-			stream << '\t' << row << '\n';
+		return std::move(table);
 	}
 }
 
@@ -63,14 +62,14 @@ Minidump::~Minidump()
 {
 }
 
-void Minidump::print_exception_call_stack(std::ostream& stream)
+Table Minidump::print_exception_call_stack() const
 {
 	if (!_data->exception)
-		return;
-	::print_call_stack(stream, *_data, *_data->exception->thread);
+		return {};
+	return ::print_call_stack(*_data, *_data->exception->thread);
 }
 
-void Minidump::print_memory(std::ostream& stream)
+Table Minidump::print_memory() const
 {
 	const auto usage_to_string = [this](const MinidumpData::MemoryInfo& memory_info) -> std::string
 	{
@@ -85,8 +84,7 @@ void Minidump::print_memory(std::ostream& stream)
 		}
 	};
 
-	std::vector<std::vector<std::string>> table;
-	table.push_back({"RANGE", "SIZE", "USAGE"});
+	Table table({"RANGE", "SIZE", "USAGE"});
 	for (const auto& memory_range : _data->memory)
 	{
 		table.push_back({
@@ -95,14 +93,12 @@ void Minidump::print_memory(std::ostream& stream)
 			usage_to_string(memory_range.second),
 		});
 	}
-	for (const auto& row : ::format_table(table))
-		stream << '\t' << row << '\n';
+	return std::move(table);
 }
 
-void Minidump::print_modules(std::ostream& stream)
+Table Minidump::print_modules() const
 {
-	std::vector<std::vector<std::string>> table;
-	table.push_back({"#", "NAME", "VERSION", "IMAGE", "PDB"});
+	Table table({"#", "NAME", "VERSION", "IMAGE", "PDB"});
 	for (const auto& module : _data->modules)
 	{
 		table.push_back({
@@ -110,35 +106,35 @@ void Minidump::print_modules(std::ostream& stream)
 			module.file_name,
 			module.product_version,
 			::to_hex(module.image_base, _data->is_32bit) + " - " + ::to_hex(module.image_end, _data->is_32bit),
-			module.pdb_name
+			module.pdb_name,
 		});
 	}
-	for (const auto& row : ::format_table(table))
-		stream << '\t' << row << '\n';
+	return std::move(table);
 }
 
-void Minidump::print_summary(std::ostream& stream)
+Table Minidump::print_summary() const
 {
-	stream << "Timestamp: " << ::time_t_to_string(_data->timestamp) << "\n";
+	Table table;
+	table.push_back({"Timestamp", ::time_t_to_string(_data->timestamp)});
 	if (_data->process_id)
-		stream << "Process ID: " << _data->process_id << "\n";
+		table.push_back({"Process ID ", std::to_string(_data->process_id)});
 	if (_data->process_create_time)
 	{
-		stream
-			<< "Process creation time: " << ::time_t_to_string(_data->process_create_time)
-				<< " (calculated uptime: " << ::seconds_to_string(_data->timestamp - _data->process_create_time) << ")\n"
-			<< "Process user time: " << ::seconds_to_string(_data->process_user_time) << "\n"
-			<< "Process kernel time: " << ::seconds_to_string(_data->process_kernel_time) << "\n";
+		table.push_back({"Process creation time", ::time_t_to_string(_data->process_create_time)});
+		table.push_back({"Calculated uptime", ::seconds_to_string(_data->timestamp - _data->process_create_time)});
+		table.push_back({"Process user time", ::seconds_to_string(_data->process_user_time)});
+		table.push_back({"Process kernel time", ::seconds_to_string(_data->process_kernel_time)});
 	}
 	if (_data->system_info)
 	{
-		stream << "Number of processors: " << std::to_string(_data->system_info->processors) << "\n";
+		table.push_back({"Number of processors", std::to_string(_data->system_info->processors)});
 		if (!_data->system_info->version_name.empty())
-			stream << "System version name: " << _data->system_info->version_name << "\n";
+			table.push_back({"System version name", _data->system_info->version_name});
 	}
+	return std::move(table);
 }
 
-void Minidump::print_thread_call_stack(std::ostream& stream, const std::string& thread_index)
+Table Minidump::print_thread_call_stack(const std::string& thread_index) const
 {
 	unsigned long index = 0;
 	try
@@ -151,15 +147,14 @@ void Minidump::print_thread_call_stack(std::ostream& stream, const std::string& 
 	if (index == 0 || index > _data->threads.size())
 	{
 		std::cerr << "ERROR: Bad thread # " << thread_index << std::endl;
-		return;
+		return {};
 	}
-	::print_call_stack(stream, *_data, _data->threads[index - 1]);
+	return ::print_call_stack(*_data, _data->threads[index - 1]);
 }
 
-void Minidump::print_threads(std::ostream& stream)
+Table Minidump::print_threads() const
 {
-	std::vector<std::vector<std::string>> table;
-	table.push_back({"#", "ID", "STACK", "START", "CURRENT", "ESP"});
+	Table table({"#", "ID", "STACK", "START", "CURRENT"});
 	for (const auto& thread : _data->threads)
 	{
 		table.push_back({
@@ -168,9 +163,7 @@ void Minidump::print_threads(std::ostream& stream)
 			::to_hex(thread.stack_base, _data->is_32bit) + " - " + ::to_hex(thread.stack_end, _data->is_32bit),
 			decode_code_address(*_data, thread.start_address),
 			decode_code_address(*_data, thread.context.x86.eip),
-			::to_hex(thread.context.x86.esp)
 		});
 	}
-	for (const auto& row : ::format_table(table))
-		stream << '\t' << row << '\n';
+	return std::move(table);
 }

@@ -1,10 +1,10 @@
 #pragma once
 
-#include <iosfwd>
 #include <memory>
 #include <string>
 
-struct MinidumpData;
+class MinidumpData;
+class Table;
 
 class Minidump
 {
@@ -19,12 +19,12 @@ public:
 	Minidump& operator=(const Minidump&) = default;
 	Minidump& operator=(Minidump&&) = default;
 
-	void print_exception_call_stack(std::ostream&);
-	void print_memory(std::ostream&);
-	void print_modules(std::ostream&);
-	void print_summary(std::ostream&);
-	void print_thread_call_stack(std::ostream&, const std::string& thread_index);
-	void print_threads(std::ostream&);
+	Table print_exception_call_stack() const;
+	Table print_memory() const;
+	Table print_modules() const;
+	Table print_summary() const;
+	Table print_thread_call_stack(const std::string& thread_index) const;
+	Table print_threads() const;
 
 private:
 

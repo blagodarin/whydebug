@@ -5,8 +5,10 @@
 #include <string>
 #include <vector>
 
-struct MinidumpData
+class MinidumpData
 {
+public:
+
 	struct MemoryUsage
 	{
 		uint64_t all_images = 0;

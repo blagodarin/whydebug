@@ -1,5 +1,6 @@
 #include "check.h"
 #include "minidump.h"
+#include "table.h"
 #include <iostream>
 #include <memory>
 #include <unordered_map>
@@ -29,7 +30,7 @@ int main(int argc, char** argv)
 		{ "a", [&dump](const std::vector<std::string>& args)
 			{
 				if (args.empty())
-					dump->print_memory(std::cout);
+					std::cout << dump->print_memory();
 				else
 					std::cerr << "ERROR: Bad arguments" << std::endl;
 			}
@@ -37,7 +38,7 @@ int main(int argc, char** argv)
 		{ "m", [&dump](const std::vector<std::string>& args)
 			{
 				if (args.empty())
-					dump->print_modules(std::cout);
+					std::cout << dump->print_modules();
 				else
 					std::cerr << "ERROR: Bad arguments" << std::endl;
 			}
@@ -45,9 +46,9 @@ int main(int argc, char** argv)
 		{ "t", [&dump](const std::vector<std::string>& args)
 			{
 				if (args.empty())
-					dump->print_threads(std::cout);
+					std::cout << dump->print_threads();
 				else if (args.size() == 1)
-					dump->print_thread_call_stack(std::cout, args[0]);
+					std::cout << dump->print_thread_call_stack(args[0]);
 				else
 					std::cerr << "ERROR: Bad arguments" << std::endl;
 			}
@@ -55,7 +56,7 @@ int main(int argc, char** argv)
 		{ "x", [&dump](const std::vector<std::string>& args)
 			{
 				if (args.empty())
-					dump->print_exception_call_stack(std::cout);
+					std::cout << dump->print_exception_call_stack();
 				else
 					std::cerr << "ERROR: Bad arguments" << std::endl;
 			}
@@ -93,7 +94,7 @@ int main(int argc, char** argv)
 	}
 	else
 	{
-		dump->print_summary(std::cout);
+		std::cout << dump->print_summary();
 		for (std::string line; ; )
 		{
 			std::cout << "?> ";

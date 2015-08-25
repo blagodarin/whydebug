@@ -11,9 +11,6 @@ bool has_flags(T value, std::underlying_type_t<T> flags)
 }
 
 //
-std::vector<std::string> format_table(const std::vector<std::vector<std::string>>&);
-
-//
 std::string seconds_to_string(uint32_t);
 
 //

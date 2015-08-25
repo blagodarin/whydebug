@@ -8,6 +8,7 @@ add_executable(whydebug
 	src/main.cpp
 	src/minidump.cpp
 	src/minidump_data.cpp
+	src/table.cpp
 	src/utils.cpp
 	)
 set_property(TARGET whydebug PROPERTY CXX_STANDARD 14)

@@ -76,7 +76,7 @@ Table Minidump::print_memory() const
 		switch (memory_info.usage)
 		{
 		case MinidumpData::MemoryInfo::Usage::Image:
-			return _data->modules[memory_info.usage_index].file_name;
+			return _data->modules[memory_info.usage_index - 1].file_name;
 		case MinidumpData::MemoryInfo::Usage::Stack:
 			return "< stack " + std::to_string(memory_info.usage_index) + " >";
 		default:

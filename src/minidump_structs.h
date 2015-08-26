@@ -427,7 +427,7 @@ namespace minidump
 	struct Memory64ListHeader
 	{
 		uint64_t entry_count; //
-		uint64_t BaseRva;     //
+		uint64_t offset;      //
 	};
 
 	// (MINIDUMP_MEMORY_DESCRIPTOR64).

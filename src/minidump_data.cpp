@@ -79,6 +79,29 @@ namespace
 		}
 	}
 
+	void load_memory64_list(MinidumpData& dump, File& file, const minidump::Stream& stream)
+	{
+		CHECK(dump.memory.empty(), "Duplicate memory list");
+
+		minidump::Memory64ListHeader header;
+		CHECK(stream.location.size >= sizeof header, "Bad memory list stream");
+		CHECK(file.seek(stream.location.offset), "Bad memory list offset");
+		CHECK(file.read(header), "Couldn't read memory list header");
+		CHECK_GE(header.entry_count, 0, "Bad memory list size");
+
+		std::vector<minidump::Memory64Range> memory(header.entry_count);
+		const auto memory_list_size = memory.size() * sizeof(minidump::Memory64Range);
+		CHECK(file.read(memory.data(), memory_list_size) == memory_list_size, "Couldn't read memory list");
+		for (const auto& memory_range : memory)
+		{
+			MinidumpData::MemoryInfo m;
+			m.end = memory_range.base + memory_range.size;
+
+			dump.memory.emplace(memory_range.base, std::move(m));
+			dump.is_32bit = dump.is_32bit && m.end <= uint64_t{UINT32_MAX} + 1;
+		}
+	}
+
 	void load_module_list(MinidumpData& dump, File& file, const minidump::Stream& stream)
 	{
 		const auto version_to_string = [](uint32_t ms, uint32_t ls) -> std::string
@@ -301,6 +324,9 @@ std::unique_ptr<MinidumpData> MinidumpData::load(const std::string& file_name)
 			break;
 		case minidump::Stream::Type::MemoryList:
 			load_memory_list(*dump, file, stream);
+			break;
+		case minidump::Stream::Type::Memory64List:
+			load_memory64_list(*dump, file, stream);
 			break;
 		case minidump::Stream::Type::Exception:
 			load_exception(*dump, file, stream);

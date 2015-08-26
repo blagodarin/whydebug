@@ -23,8 +23,10 @@ namespace
 		CHECK(file.seek(offset), "Bad string offset");
 		minidump::StringHeader header;
 		CHECK(file.read(header), "Couldn't read string header");
+		if (!header.size)
+			return {};
 		std::u16string string(header.size / 2, u' ');
-		CHECK(file.read(const_cast<char16_t*>(string.data()), string.size() * sizeof(char16_t)), "Couldn't read string");
+		CHECK(file.read(const_cast<char16_t*>(string.data()), header.size), "Couldn't read string");
 		return std::move(string);
 	}
 
@@ -66,7 +68,7 @@ namespace
 		minidump::MemoryInfoListHeader header;
 		CHECK(stream.location.size >= sizeof header, "Bad memory info list stream");
 		CHECK(file.seek(stream.location.offset), "Bad memory info list offset");
-		CHECK(file.read(header), "Couldn't read memory list header");
+		CHECK(file.read(header), "Couldn't read memory info list header");
 		CHECK_GE(header.header_size, sizeof header, "Bad memory info list header size");
 
 		minidump::MemoryInfo memory_info;
@@ -222,7 +224,7 @@ namespace
 		}
 		catch (const BadCheck& e)
 		{
-			std::cerr << "ERROR: " << e.what() << std::endl;
+			std::cerr << "ERROR: Couldn't read system version name: " << e.what() << std::endl;
 		}
 	}
 
@@ -312,6 +314,36 @@ namespace
 			dump.is_32bit = dump.is_32bit && j->start_address <= End32;
 		}
 	}
+
+	void load_unloaded_module_list(MinidumpData& dump, File& file, const minidump::Stream& stream)
+	{
+		CHECK(dump.unloaded_modules.empty(), "Duplicate unloaded module list");
+
+		minidump::UnloadedModuleListHeader header;
+		CHECK(stream.location.size >= sizeof header, "Bad unloaded module list stream");
+		CHECK(file.seek(stream.location.offset), "Bad unloaded module list offset");
+		CHECK(file.read(header), "Couldn't read unloaded module list header");
+		CHECK_GE(header.header_size, sizeof header, "Bad unloaded module list header size");
+
+		minidump::UnloadedModule unloaded_module;
+		CHECK_GE(header.entry_size, sizeof unloaded_module, "Bad unloaded module entry size");
+		dump.unloaded_modules.reserve(header.entry_count);
+		const auto base = stream.location.offset + header.header_size;
+		for (uint32_t i = 0; i < header.entry_count; ++i)
+		{
+			CHECK(file.seek(base + i * header.entry_size), "Bad unloaded module list");
+			CHECK(file.read(unloaded_module), "Couldn't unloaded module entry");
+
+			MinidumpData::UnloadedModule m;
+			m.file_path = ::to_ascii(::read_string(file, unloaded_module.name_offset));
+			m.file_name = m.file_path.substr(m.file_path.find_last_of('\\') + 1);
+			m.timestamp = ::time_t_to_string(unloaded_module.time_date_stamp);
+			m.image_base = unloaded_module.image_base;
+			m.image_end = unloaded_module.image_base + unloaded_module.image_size;
+			dump.unloaded_modules.emplace_back(std::move(m));
+			dump.is_32bit = dump.is_32bit && m.image_end <= End32;
+		}
+	}
 }
 
 std::unique_ptr<MinidumpData> MinidumpData::load(const std::string& file_name)
@@ -382,6 +414,9 @@ std::unique_ptr<MinidumpData> MinidumpData::load(const std::string& file_name)
 			break;
 		case minidump::Stream::Type::SystemInfo:
 			load_system_info(*dump, file, stream);
+			break;
+		case minidump::Stream::Type::UnloadedModuleList:
+			load_unloaded_module_list(*dump, file, stream);
 			break;
 		case minidump::Stream::Type::MiscInfo:
 			load_misc_info(*dump, file, stream);

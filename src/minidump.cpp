@@ -84,11 +84,12 @@ Table Minidump::print_memory() const
 		}
 	};
 
-	Table table({"RANGE", "SIZE", "USAGE"});
+	Table table({"BASE", "END", "SIZE", "USAGE"});
 	for (const auto& memory_range : _data->memory)
 	{
 		table.push_back({
-			::to_hex(memory_range.first, _data->is_32bit) + " - " + ::to_hex(memory_range.second.end, _data->is_32bit),
+			::to_hex(memory_range.first, _data->is_32bit),
+			::to_hex(memory_range.second.end, _data->is_32bit),
 			::to_hex_min(memory_range.second.end - memory_range.first),
 			usage_to_string(memory_range.second),
 		});
@@ -128,14 +129,16 @@ Table Minidump::print_memory_regions() const
 
 Table Minidump::print_modules() const
 {
-	Table table({"#", "NAME", "VERSION", "IMAGE", "PDB"});
+	Table table({"#", "NAME", "VERSION", "IMAGE", "END", "SIZE", "PDB"});
 	for (const auto& module : _data->modules)
 	{
 		table.push_back({
 			std::to_string(&module - &_data->modules.front() + 1),
 			module.file_name,
 			module.product_version,
-			::to_hex(module.image_base, _data->is_32bit) + " - " + ::to_hex(module.image_end, _data->is_32bit),
+			::to_hex(module.image_base, _data->is_32bit),
+			::to_hex(module.image_end, _data->is_32bit),
+			::to_hex_min(module.image_end - module.image_base),
 			module.pdb_name,
 		});
 	}
@@ -184,15 +187,32 @@ Table Minidump::print_thread_call_stack(const std::string& thread_index) const
 
 Table Minidump::print_threads() const
 {
-	Table table({"#", "ID", "STACK", "START", "CURRENT"});
+	Table table({"#", "ID", "STACK", "END", "START", "CURRENT"});
 	for (const auto& thread : _data->threads)
 	{
 		table.push_back({
 			std::to_string(&thread - &_data->threads.front() + 1),
 			::to_hex(thread.id),
-			::to_hex(thread.stack_base, _data->is_32bit) + " - " + ::to_hex(thread.stack_end, _data->is_32bit),
+			::to_hex(thread.stack_base, _data->is_32bit),
+			::to_hex(thread.stack_end, _data->is_32bit),
 			decode_code_address(*_data, thread.start_address),
 			decode_code_address(*_data, thread.context.x86.eip),
+		});
+	}
+	return std::move(table);
+}
+
+Table Minidump::print_unloaded_modules() const
+{
+	Table table({"#", "NAME", "IMAGE", "END", "SIZE"});
+	for (const auto& module : _data->unloaded_modules)
+	{
+		table.push_back({
+			std::to_string(&module - &_data->unloaded_modules.front() + 1),
+			module.file_name,
+			::to_hex(module.image_base, _data->is_32bit),
+			::to_hex(module.image_end, _data->is_32bit),
+			::to_hex_min(module.image_end - module.image_base),
 		});
 	}
 	return std::move(table);

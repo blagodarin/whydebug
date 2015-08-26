@@ -61,6 +61,14 @@ int main(int argc, char** argv)
 					std::cerr << "ERROR: Bad arguments" << std::endl;
 			}
 		},
+		{ "um", [&dump](const std::vector<std::string>& args)
+			{
+				if (args.empty())
+					std::cout << dump->print_unloaded_modules();
+				else
+					std::cerr << "ERROR: Bad arguments" << std::endl;
+			}
+		},
 		{ "x", [&dump](const std::vector<std::string>& args)
 			{
 				if (args.empty())

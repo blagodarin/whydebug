@@ -26,6 +26,7 @@ public:
 	Table print_summary() const;
 	Table print_thread_call_stack(const std::string& thread_index) const;
 	Table print_threads() const;
+	Table print_unloaded_modules() const;
 
 private:
 

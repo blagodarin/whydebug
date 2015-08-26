@@ -75,6 +75,19 @@ public:
 		size_t   usage_index = 0;        // Module index for Image usage, thread index for Stack usage.
 	};
 
+	struct MemoryRegion
+	{
+		enum class State
+		{
+			Free,
+			Reserved,
+			Allocated,
+		};
+
+		uint64_t end = 0;
+		State    state = State::Free;
+	};
+
 	time_t timestamp = 0;
 	uint32_t process_id = 0;
 	time_t process_create_time = 0;
@@ -87,6 +100,7 @@ public:
 	std::unique_ptr<Exception> exception;
 	std::unique_ptr<SystemInfo> system_info;
 	std::map<uint64_t, MemoryInfo> memory;
+	std::map<uint64_t, MemoryRegion> memory_regions;
 
 	//
 	static std::unique_ptr<MinidumpData> load(const std::string& file_name);

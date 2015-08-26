@@ -118,8 +118,8 @@ namespace minidump
 	// Thread list entry (MINIDUMP_THREAD).
 	struct Thread
 	{
-		uint32_t    ThreadId;       //
-		uint32_t    SuspendCount;   //
+		uint32_t    id;             //
+		uint32_t    suspend_count;  //
 		uint32_t    priority_class; //
 		uint32_t    priority;       //
 		uint64_t    teb;            //
@@ -401,22 +401,14 @@ namespace minidump
 	////////////////////////
 
 	// (MINIDUMP_THREAD_EX_LIST).
-	struct ThreadExListHeader
+	struct ThreadExListHeader : public ThreadListHeader
 	{
-		uint32_t entry_count; //
 	};
 
 	// (MINIDUMP_THREAD_EX).
-	struct ThreadEx
+	struct ThreadEx : public Thread
 	{
-		uint32_t    ThreadId;      //
-		uint32_t    SuspendCount;  //
-		uint32_t    PriorityClass; //
-		uint32_t    Priority;      //
-		uint64_t    Teb;           //
-		MemoryRange Stack;         //
-		Location    ThreadContext; //
-		MemoryRange BackingStore;  //
+		MemoryRange backing_store; //
 	};
 
 	////////////////////////
@@ -609,12 +601,12 @@ namespace minidump
 	// (MINIDUMP_MEMORY_INFO).
 	struct MemoryInfo
 	{
-		uint64_t BaseAddress;       //
+		uint64_t base;              //
 		uint64_t AllocationBase;    //
 		uint32_t AllocationProtect; //
 		uint32_t __alignment1;      //
-		uint64_t RegionSize;        //
-		uint32_t State;             //
+		uint64_t size;              //
+		uint32_t state;             //
 		uint32_t Protect;           //
 		uint32_t Type;              //
 		uint32_t __alignment2;      //

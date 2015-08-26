@@ -9,6 +9,9 @@
 
 namespace
 {
+	// End of 32-bit address range.
+	constexpr auto End32 = uint64_t{UINT32_MAX} + 1;
+
 	template <typename T>
 	std::unique_ptr<T, void(*)(void*)> allocate_pod(size_t size)
 	{
@@ -56,49 +59,95 @@ namespace
 		// TODO: Load processor power info (MINIDUMP_MISC_INFO_2).
 	}
 
+	void load_memory_info_list(MinidumpData& dump, File& file, const minidump::Stream& stream)
+	{
+		CHECK(dump.memory_regions.empty(), "Duplicate memory info list");
+
+		minidump::MemoryInfoListHeader header;
+		CHECK(stream.location.size >= sizeof header, "Bad memory info list stream");
+		CHECK(file.seek(stream.location.offset), "Bad memory info list offset");
+		CHECK(file.read(header), "Couldn't read memory list header");
+		CHECK_GE(header.header_size, sizeof header, "Bad memory info list header size");
+
+		minidump::MemoryInfo memory_info;
+		CHECK_GE(header.entry_size, sizeof memory_info, "Bad memory info size");
+		const auto base = stream.location.offset + header.header_size;
+		for (uint32_t i = 0; i < header.entry_count; ++i)
+		{
+			CHECK(file.seek(base + i * header.entry_size), "Bad memory info list");
+			CHECK(file.read(memory_info), "Couldn't read memory info entry");
+
+			MinidumpData::MemoryRegion m;
+			m.end = memory_info.base + memory_info.size;
+			switch (memory_info.state)
+			{
+			case minidump::MEM_COMMIT:
+				m.state = MinidumpData::MemoryRegion::State::Allocated;
+				break;
+			case minidump::MEM_RESERVE:
+				m.state = MinidumpData::MemoryRegion::State::Reserved;
+				break;
+			default:
+				CHECK_EQ(memory_info.state, minidump::MEM_FREE, "Bad memory region state");
+			}
+
+			// NOTE: Temporary collapsing code.
+			const auto j = std::find_if(dump.memory_regions.rbegin(), dump.memory_regions.rend(), [&memory_info](const auto& memory_region)
+			{
+				return memory_region.second.end == memory_info.base;
+			});
+			if (j != dump.memory_regions.rend() && j->second.state == m.state)
+				j->second.end = m.end;
+			else
+				dump.memory_regions.emplace(memory_info.base, std::move(m));
+
+			dump.is_32bit = dump.is_32bit && m.end <= End32;
+		}
+	}
+
 	void load_memory_list(MinidumpData& dump, File& file, const minidump::Stream& stream)
 	{
-		CHECK(dump.memory.empty(), "Duplicate memory list");
+		CHECK(dump.memory.empty(), "Duplicate memory/memory64 list");
 
 		minidump::MemoryListHeader header;
-		CHECK(stream.location.size >= sizeof header, "Bad memory list stream");
-		CHECK(file.seek(stream.location.offset), "Bad memory list offset");
-		CHECK(file.read(header), "Couldn't read memory list header");
-		CHECK_GE(header.entry_count, 0, "Bad memory list size");
+		CHECK(stream.location.size >= sizeof header, "Bad memory/memory64 list stream");
+		CHECK(file.seek(stream.location.offset), "Bad memory/memory64 list offset");
+		CHECK(file.read(header), "Couldn't read memory/memory64 list header");
+		CHECK_GE(header.entry_count, 0, "Bad memory/memory64 list size");
 
 		std::vector<minidump::MemoryRange> memory(header.entry_count);
 		const auto memory_list_size = memory.size() * sizeof(minidump::MemoryRange);
-		CHECK(file.read(memory.data(), memory_list_size) == memory_list_size, "Couldn't read memory list");
+		CHECK(file.read(memory.data(), memory_list_size) == memory_list_size, "Couldn't read memory/memory64 list");
 		for (const auto& memory_range : memory)
 		{
 			MinidumpData::MemoryInfo m;
 			m.end = memory_range.base + memory_range.location.size;
 
 			dump.memory.emplace(memory_range.base, std::move(m));
-			dump.is_32bit = dump.is_32bit && m.end <= uint64_t{UINT32_MAX} + 1;
+			dump.is_32bit = dump.is_32bit && m.end <= End32;
 		}
 	}
 
 	void load_memory64_list(MinidumpData& dump, File& file, const minidump::Stream& stream)
 	{
-		CHECK(dump.memory.empty(), "Duplicate memory list");
+		CHECK(dump.memory.empty(), "Duplicate memory/memory64 list");
 
 		minidump::Memory64ListHeader header;
-		CHECK(stream.location.size >= sizeof header, "Bad memory list stream");
-		CHECK(file.seek(stream.location.offset), "Bad memory list offset");
-		CHECK(file.read(header), "Couldn't read memory list header");
-		CHECK_GE(header.entry_count, 0, "Bad memory list size");
+		CHECK(stream.location.size >= sizeof header, "Bad memory/memory64 list stream");
+		CHECK(file.seek(stream.location.offset), "Bad memory/memory64 list offset");
+		CHECK(file.read(header), "Couldn't read memory/memory64 list header");
+		CHECK_GE(header.entry_count, 0, "Bad memory/memory64 list size");
 
 		std::vector<minidump::Memory64Range> memory(header.entry_count);
 		const auto memory_list_size = memory.size() * sizeof(minidump::Memory64Range);
-		CHECK(file.read(memory.data(), memory_list_size) == memory_list_size, "Couldn't read memory list");
+		CHECK(file.read(memory.data(), memory_list_size) == memory_list_size, "Couldn't read memory/memory64 list");
 		for (const auto& memory_range : memory)
 		{
 			MinidumpData::MemoryInfo m;
 			m.end = memory_range.base + memory_range.size;
 
 			dump.memory.emplace(memory_range.base, std::move(m));
-			dump.is_32bit = dump.is_32bit && m.end <= uint64_t{UINT32_MAX} + 1;
+			dump.is_32bit = dump.is_32bit && m.end <= End32;
 		}
 	}
 
@@ -152,7 +201,7 @@ namespace
 			dump.modules.emplace_back(std::move(m));
 			dump.memory_usage.all_images += m.image_end - m.image_base;
 			dump.memory_usage.max_image = std::max<uint64_t>(dump.memory_usage.max_image, m.image_end - m.image_base);
-			dump.is_32bit = dump.is_32bit && m.image_end <= uint64_t{UINT32_MAX} + 1;
+			dump.is_32bit = dump.is_32bit && m.image_end <= End32;
 		}
 	}
 
@@ -195,7 +244,7 @@ namespace
 			const auto index = &thread - &threads.front() + 1;
 
 			MinidumpData::Thread t;
-			t.id = thread.ThreadId;
+			t.id = thread.id;
 			t.stack_base = thread.stack.base;
 			t.stack_end = thread.stack.base + thread.stack.location.size;
 
@@ -222,7 +271,7 @@ namespace
 			dump.threads.emplace_back(std::move(t));
 			dump.memory_usage.all_stacks += t.stack_base + t.stack_end;
 			dump.memory_usage.max_stack = std::max<uint64_t>(dump.memory_usage.max_stack, t.stack_base + t.stack_end);
-			dump.is_32bit = dump.is_32bit && t.stack_end <= uint64_t{UINT32_MAX} + 1;
+			dump.is_32bit = dump.is_32bit && t.stack_end <= End32;
 		}
 	}
 
@@ -260,7 +309,7 @@ namespace
 			j->start_address = thread_info.StartAddress;
 			j->dumping = thread_info.DumpFlags & minidump::MINIDUMP_THREAD_INFO_WRITING_THREAD;
 
-			dump.is_32bit = dump.is_32bit && j->start_address <= uint64_t{UINT32_MAX} + 1;
+			dump.is_32bit = dump.is_32bit && j->start_address <= End32;
 		}
 	}
 }
@@ -336,6 +385,9 @@ std::unique_ptr<MinidumpData> MinidumpData::load(const std::string& file_name)
 			break;
 		case minidump::Stream::Type::MiscInfo:
 			load_misc_info(*dump, file, stream);
+			break;
+		case minidump::Stream::Type::MemoryInfoList:
+			load_memory_info_list(*dump, file, stream);
 			break;
 		case minidump::Stream::Type::ThreadInfoList:
 			load_thread_info_list(*dump, file, stream);

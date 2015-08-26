@@ -80,7 +80,7 @@ Table Minidump::print_memory() const
 		case MinidumpData::MemoryInfo::Usage::Stack:
 			return "< stack " + std::to_string(memory_info.usage_index) + " >";
 		default:
-			return "Unknown";
+			return {};
 		}
 	};
 
@@ -91,6 +91,36 @@ Table Minidump::print_memory() const
 			::to_hex(memory_range.first, _data->is_32bit) + " - " + ::to_hex(memory_range.second.end, _data->is_32bit),
 			::to_hex_min(memory_range.second.end - memory_range.first),
 			usage_to_string(memory_range.second),
+		});
+	}
+	return std::move(table);
+}
+
+Table Minidump::print_memory_regions() const
+{
+	const auto state_to_string = [this](MinidumpData::MemoryRegion::State state) -> std::string
+	{
+		switch (state)
+		{
+		case MinidumpData::MemoryRegion::State::Free:
+			return "Free";
+		case MinidumpData::MemoryRegion::State::Reserved:
+			return "Reserved";
+		case MinidumpData::MemoryRegion::State::Allocated:
+			return "Allocated";
+		default:
+			return {};
+		}
+	};
+
+	Table table({"BASE", "END", "SIZE", "STATE"});
+	for (const auto& memory_region : _data->memory_regions)
+	{
+		table.push_back({
+			::to_hex(memory_region.first, _data->is_32bit),
+			::to_hex(memory_region.second.end, _data->is_32bit),
+			::to_hex_min(memory_region.second.end - memory_region.first),
+			state_to_string(memory_region.second.state),
 		});
 	}
 	return std::move(table);

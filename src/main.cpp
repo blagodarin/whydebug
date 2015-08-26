@@ -35,6 +35,14 @@ int main(int argc, char** argv)
 					std::cerr << "ERROR: Bad arguments" << std::endl;
 			}
 		},
+		{ "ar", [&dump](const std::vector<std::string>& args)
+			{
+				if (args.empty())
+					std::cout << dump->print_memory_regions();
+				else
+					std::cerr << "ERROR: Bad arguments" << std::endl;
+			}
+		},
 		{ "m", [&dump](const std::vector<std::string>& args)
 			{
 				if (args.empty())

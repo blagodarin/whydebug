@@ -4,11 +4,11 @@
 
 namespace
 {
-	std::vector<std::string> format_table(const std::vector<std::string>& header, const std::vector<std::vector<std::string>>& data)
+	std::vector<std::string> format_table(const std::vector<Table::ColumnHeader>& header, const std::vector<std::vector<std::string>>& data)
 	{
 		std::vector<size_t> widths(header.size());
 		for (size_t i = 0; i < header.size(); ++i)
-			widths[i] = std::max(widths[i], header[i].size());
+			widths[i] = std::max(widths[i], header[i].name.size());
 		for (const auto& row : data)
 			for (size_t i = 0; i < row.size(); ++i)
 				widths[i] = std::max(widths[i], row[i].size());
@@ -19,7 +19,13 @@ namespace
 		{
 			if (i > 0)
 				header_row += "  ";
-			header_row += header[i] + std::string(widths[i] - header[i].size(), ' ');
+			auto&& text = header[i].name;
+			const auto& cell_text = header[i].name;
+			std::string padding(widths[i] - cell_text.size(), ' ');
+			if (header[i].alignment == Table::Alignment::Left)
+				header_row += cell_text + padding;
+			else
+				header_row += std::move(padding) + cell_text;
 		}
 		result.emplace_back(std::move(header_row));
 		for (const auto& row : data)
@@ -29,7 +35,12 @@ namespace
 			{
 				if (i > 0)
 					data_row += "  ";
-				data_row += row[i] + std::string(widths[i] - row[i].size(), ' ');
+				const auto& cell_text = row[i];
+				std::string padding(widths[i] - cell_text.size(), ' ');
+				if (header[i].alignment == Table::Alignment::Left)
+					data_row += cell_text + padding;
+				else
+					data_row += std::move(padding) + cell_text;
 			}
 			result.emplace_back(std::move(data_row));
 		}
@@ -38,7 +49,7 @@ namespace
 	}
 }
 
-Table::Table(std::vector<std::string>&& header)
+Table::Table(std::vector<ColumnHeader>&& header)
 	: _header(std::move(header))
 {
 }
@@ -53,12 +64,12 @@ void Table::sort(const std::string& column_prefix)
 {
 	size_t best_match_size = 0;
 	size_t best_match = 0;
-	for (const auto& column_name : _header)
+	for (const auto& column : _header)
 	{
-		if (column_name.find(column_prefix) == 0 && column_prefix.size() > best_match_size)
+		if (column.name.find(column_prefix) == 0 && column_prefix.size() > best_match_size)
 		{
 			best_match_size = column_prefix.size();
-			best_match = &column_name - &_header.front();
+			best_match = &column - &_header.front();
 		}
 	}
 	if (best_match_size == 0)
@@ -66,6 +77,7 @@ void Table::sort(const std::string& column_prefix)
 	std::sort(_data.begin(), _data.end(), [best_match](const auto& left, const auto& right)
 	{
 		return left[best_match] < right[best_match];
+		// TODO: Proper sorting of right-aligned data.
 	});
 }
 

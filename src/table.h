@@ -8,7 +8,22 @@ class Table
 {
 public:
 
-	Table(std::vector<std::string>&& header);
+	enum class Alignment
+	{
+		Left,
+		Right,
+	};
+
+	struct ColumnHeader
+	{
+		std::string name;
+		Alignment alignment = Alignment::Left;
+
+		ColumnHeader(const std::string& name) : name(name) {}
+		ColumnHeader(const std::string& name, Alignment alignment) : name(name), alignment(alignment) {}
+	};
+
+	Table(std::vector<ColumnHeader>&& header);
 
 	void push_back(std::vector<std::string>&& row);
 	void sort(const std::string& column_prefix);
@@ -21,7 +36,7 @@ public:
 
 private:
 
-	std::vector<std::string> _header;
+	std::vector<ColumnHeader> _header;
 	std::vector<std::vector<std::string>> _data;
 
 	friend std::ostream& operator<<(std::ostream&, const Table&);

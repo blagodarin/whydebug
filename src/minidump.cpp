@@ -167,22 +167,11 @@ Table Minidump::print_summary() const
 	return std::move(table);
 }
 
-Table Minidump::print_thread_call_stack(const std::string& thread_index) const
+Table Minidump::print_thread_call_stack(unsigned long thread_index) const
 {
-	unsigned long index = 0;
-	try
-	{
-		index = std::stoul(thread_index);
-	}
-	catch (const std::logic_error&)
-	{
-	}
-	if (index == 0 || index > _data->threads.size())
-	{
-		std::cerr << "ERROR: Bad thread # " << thread_index << std::endl;
-		return {};
-	}
-	return ::print_call_stack(*_data, _data->threads[index - 1]);
+	if (thread_index == 0 || thread_index > _data->threads.size())
+		throw std::invalid_argument("Bad thread " + std::to_string(thread_index));
+	return ::print_call_stack(*_data, _data->threads[thread_index - 1]);
 }
 
 Table Minidump::print_threads() const

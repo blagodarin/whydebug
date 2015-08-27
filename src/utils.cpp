@@ -75,6 +75,18 @@ std::string to_human_readable(uint64_t bytes)
 	return std::to_string(bytes) + " T";
 }
 
+unsigned long to_ulong(const std::string& value)
+{
+	try
+	{
+		return std::stoul(value);
+	}
+	catch (const std::logic_error&)
+	{
+		throw std::runtime_error("Invalid number: " + value);
+	}
+}
+
 void print_data(const uint32_t* data, size_t bytes, size_t columns)
 {
 	assert(columns > 0);

@@ -36,4 +36,7 @@ std::string to_hex_min(uint64_t);
 std::string to_human_readable(uint64_t);
 
 //
+unsigned long to_ulong(const std::string&);
+
+//
 void print_data(const uint32_t* data, size_t bytes, size_t columns = 16);

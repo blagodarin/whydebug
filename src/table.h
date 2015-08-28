@@ -25,7 +25,7 @@ public:
 
 	Table(std::vector<ColumnHeader>&& header);
 
-	void print(std::ostream&);
+	void print(std::ostream&) const;
 	void push_back(std::vector<std::string>&& row);
 	void sort(const std::string& column_prefix);
 

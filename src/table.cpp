@@ -15,7 +15,7 @@ Table::Table(std::vector<ColumnHeader>&& header)
 	}
 }
 
-void Table::print(std::ostream& stream)
+void Table::print(std::ostream& stream) const
 {
 	std::vector<size_t> widths(_header.size(), 0);
 	for (size_t i = 0; i < _header.size(); ++i)

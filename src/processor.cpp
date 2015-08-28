@@ -1,6 +1,7 @@
 #include "processor.h"
 #include "minidump.h"
 #include "utils.h"
+#include <chrono>
 #include <iostream>
 
 namespace
@@ -78,6 +79,15 @@ Processor::Processor(std::unique_ptr<Minidump>&& dump)
 				_table = _dump->print_exception_call_stack();
 			}
 		},
+		{ "?time", [this](const std::vector<std::string>& args)
+			{
+				::check_arguments(args, 0, 0);
+				Table table({{""}, {"", Table::Alignment::Right}});
+				table.push_back({"Last command time:", std::to_string(_last_command_time) + " ms"});
+				table.push_back({"Last print time:", std::to_string(_last_print_time) + " ms"});
+				table.print(std::cout);
+			}
+		},
 	}
 {
 }
@@ -89,6 +99,8 @@ void Processor::print_summary() const
 
 bool Processor::process(const std::string& commands)
 {
+	bool print_table = true;
+
 	std::vector<std::pair<Command, std::vector<std::string>>> parsed_commands;
 	for (const auto& command_string : ::split(commands, '|'))
 	{
@@ -110,15 +122,22 @@ bool Processor::process(const std::string& commands)
 		const auto i = _commands.find(name);
 		if (i == _commands.end())
 		{
-			std::cerr << "Unknown command \"" << name << "\"" << std::endl;
+			std::cerr << "ERROR: Unknown command: " << name << std::endl;
 			return false;
 		}
 		parsed_commands.emplace_back(i->second, std::move(arguments));
+		print_table = name[0] != '?';
 	}
+
 	try
 	{
 		for (const auto& parsed_command : parsed_commands)
+		{
+			const auto start_time = std::chrono::steady_clock::now();
 			parsed_command.first(parsed_command.second);
+			const auto end_time = std::chrono::steady_clock::now();
+			_last_command_time = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
+		}
 	}
 	catch (const std::exception& e) // TODO: Should we catch std::logic_error here?
 	{
@@ -126,6 +145,14 @@ bool Processor::process(const std::string& commands)
 		std::cerr << "ERROR: " << e.what() << std::endl;
 		return false;
 	}
-	_table.print(std::cout);
+
+	if (print_table)
+	{
+		const auto start_time = std::chrono::steady_clock::now();
+		_table.print(std::cout);
+		const auto end_time = std::chrono::steady_clock::now();
+		_last_print_time = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
+	}
+
 	return true;
 }

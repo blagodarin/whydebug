@@ -148,21 +148,21 @@ Table Minidump::print_modules() const
 Table Minidump::print_summary() const
 {
 	Table table;
-	table.push_back({"Timestamp", ::time_t_to_string(_data->timestamp)});
+	table.push_back({"Timestamp:", ::time_t_to_string(_data->timestamp)});
 	if (_data->process_id)
-		table.push_back({"Process ID ", std::to_string(_data->process_id)});
+		table.push_back({"Process ID:", std::to_string(_data->process_id)});
 	if (_data->process_create_time)
 	{
-		table.push_back({"Process creation time", ::time_t_to_string(_data->process_create_time)});
-		table.push_back({"Calculated uptime", ::seconds_to_string(_data->timestamp - _data->process_create_time)});
-		table.push_back({"Process user time", ::seconds_to_string(_data->process_user_time)});
-		table.push_back({"Process kernel time", ::seconds_to_string(_data->process_kernel_time)});
+		table.push_back({"Process creation time:", ::time_t_to_string(_data->process_create_time)});
+		table.push_back({"Calculated uptime:", ::seconds_to_string(_data->timestamp - _data->process_create_time)});
+		table.push_back({"Process user time:", ::seconds_to_string(_data->process_user_time)});
+		table.push_back({"Process kernel time:", ::seconds_to_string(_data->process_kernel_time)});
 	}
 	if (_data->system_info)
 	{
-		table.push_back({"Number of processors", std::to_string(_data->system_info->processors)});
+		table.push_back({"Number of processors:", std::to_string(_data->system_info->processors)});
 		if (!_data->system_info->version_name.empty())
-			table.push_back({"System version name", _data->system_info->version_name});
+			table.push_back({"System version name:", _data->system_info->version_name});
 	}
 	return std::move(table);
 }

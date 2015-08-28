@@ -103,7 +103,7 @@ int main(int argc, char** argv)
 		},
 	};
 
-	const auto execute = [&command_map](const std::string& line)
+	const auto execute = [&command_map](Table& table, const std::string& line)
 	{
 		std::vector<std::pair<Command, std::vector<std::string>>> commands;
 		for (const auto& command_string : ::split(line, '|'))
@@ -131,7 +131,6 @@ int main(int argc, char** argv)
 			}
 			commands.emplace_back(i->second, std::move(arguments));
 		}
-		Table table;
 		try
 		{
 			for (const auto& command : commands)
@@ -142,14 +141,20 @@ int main(int argc, char** argv)
 			std::cerr << "ERROR: " << e.what() << std::endl;
 			return false;
 		}
-		std::cout << table;
 		return true;
 	};
 
-	if (argc == 3)
-		return execute(argv[2]);
+	Table table;
 
-	std::cout << dump->print_summary();
+	if (argc == 3)
+	{
+		if (!execute(table, argv[2]))
+			return 1;
+		table.print(std::cout);
+		return 0;
+	}
+
+	dump->print_summary().print(std::cout);
 	for (std::string line; ; )
 	{
 		std::cout << "?> ";
@@ -158,7 +163,9 @@ int main(int argc, char** argv)
 			std::cout << std::endl;
 			break;
 		}
-		execute(line);
+		if (!execute(table, line))
+			continue;
+		table.print(std::cout);
 	}
 	return 0;
 }

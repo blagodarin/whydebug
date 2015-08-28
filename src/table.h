@@ -25,6 +25,7 @@ public:
 
 	Table(std::vector<ColumnHeader>&& header);
 
+	void print(std::ostream&);
 	void push_back(std::vector<std::string>&& row);
 	void sort(const std::string& column_prefix);
 
@@ -36,10 +37,8 @@ public:
 
 private:
 
-	std::vector<ColumnHeader> _header;
+	bool _empty_header = true;
+	std::vector<std::string> _header;
+	std::vector<Alignment> _alignment;
 	std::vector<std::vector<std::string>> _data;
-
-	friend std::ostream& operator<<(std::ostream&, const Table&);
 };
-
-std::ostream& operator<<(std::ostream&, const Table&);

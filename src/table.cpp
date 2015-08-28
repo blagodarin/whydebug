@@ -1,5 +1,6 @@
 #include "table.h"
 #include <algorithm>
+#include <cstring>
 #include <iostream>
 
 Table::Table(std::vector<ColumnHeader>&& header)
@@ -24,28 +25,43 @@ void Table::print(std::ostream& stream) const
 		for (size_t i = 0; i < row.size(); ++i)
 			widths[i] = std::max(widths[i], row[i].size());
 
-	const auto row_to_string = [this, &widths](const std::vector<std::string>& row) -> std::string
+	static const size_t column_spacing = 2;
+
+	size_t total_width = column_spacing * (widths.size() - 1);
+	for (const auto column_width : widths)
+		total_width += column_width;
+
+	std::string buffer(1 + total_width + 1, ' ');
+	buffer.front() = '\t';
+	buffer.back() = '\n';
+	const auto print_row = [this, &stream, &widths, &buffer](const std::vector<std::string>& row)
 	{
-		std::string result;
+		size_t offset = 1;
 		for (size_t i = 0; i < row.size(); ++i)
 		{
-			if (i > 0)
-				result += "  ";
 			const auto& cell = row[i];
-			std::string padding(widths[i] - cell.size(), ' ');
+			const auto column_width = widths[i];
+			const auto padding = column_width - cell.size();
 			if (_alignment[i] == Table::Alignment::Left)
-				result += cell + padding;
+			{
+				::memcpy(&buffer[offset], cell.data(), cell.size());
+				::memset(&buffer[offset + cell.size()], ' ', padding);
+			}
 			else
-				result += std::move(padding) + cell;
+			{
+				::memset(&buffer[offset], ' ', padding);
+				::memcpy(&buffer[offset + padding], cell.data(), cell.size());
+			}
+			offset += column_width + column_spacing;
 		}
-		return std::move(result);
+		stream << buffer;
 	};
 
 	std::vector<std::string> rows;
 	if (!_empty_header)
-		stream << '\t' << row_to_string(_header) << '\n';
+		print_row(_header);
 	for (const auto& row : _data)
-		stream << '\t' << row_to_string(row) << '\n';
+		print_row(row);
 }
 
 void Table::push_back(std::vector<std::string>&& row)

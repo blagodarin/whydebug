@@ -8,6 +8,7 @@ add_executable(whydebug
 	src/main.cpp
 	src/minidump.cpp
 	src/minidump_data.cpp
+	src/processor.cpp
 	src/table.cpp
 	src/utils.cpp
 	)

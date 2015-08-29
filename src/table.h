@@ -46,4 +46,5 @@ private:
 	std::vector<std::string> _header;
 	std::vector<Alignment> _alignment;
 	std::vector<std::vector<std::string>> _data;
+	std::vector<size_t> _indices;
 };

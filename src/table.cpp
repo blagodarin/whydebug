@@ -21,10 +21,10 @@ void Table::filter(const std::string& prefix, const std::string& value)
 	const auto column = match_column(prefix);
 	if (column == _header.size())
 		return;
-	for (auto i = _data.begin(); i != _data.end();)
+	for (auto i = _indices.begin(); i != _indices.end();)
 	{
-		if ((*i)[column] != value)
-			i = _data.erase(i);
+		if (_data[*i][column] != value)
+			i = _indices.erase(i);
 		else
 			++i;
 	}
@@ -73,12 +73,13 @@ void Table::print(std::ostream& stream) const
 
 	if (!_empty_header)
 		print_row(_header);
-	for (const auto& row : _data)
-		print_row(row);
+	for (const auto index : _indices)
+		print_row(_data[index]);
 }
 
 void Table::push_back(std::vector<std::string>&& row)
 {
+	_indices.emplace_back(_data.size());
 	row.resize(_header.size());
 	_data.emplace_back(std::move(row));
 }
@@ -88,13 +89,13 @@ void Table::sort(const std::string& prefix)
 	const auto column = match_column(prefix);
 	if (column == _header.size())
 		return;
-	std::sort(_data.begin(), _data.end(), [this, column](const auto& left, const auto& right)
+	std::sort(_indices.begin(), _indices.end(), [this, column](const auto lhs_row, const auto rhs_row)
 	{
-		const auto& left_cell = left[column];
-		const auto& right_cell = right[column];
-		if (_alignment[column] == Table::Alignment::Right && left_cell.size() != right_cell.size())
-			return left_cell.size() < right_cell.size();
-		return left_cell < right_cell;
+		const auto& lhs_cell = _data[lhs_row][column];
+		const auto& rhs_cell = _data[rhs_row][column];
+		if (_alignment[column] == Table::Alignment::Right && lhs_cell.size() != rhs_cell.size())
+			return lhs_cell.size() < rhs_cell.size();
+		return lhs_cell < rhs_cell;
 	});
 }
 

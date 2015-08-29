@@ -57,7 +57,6 @@ void Table::print(std::ostream& stream) const
 		stream << buffer;
 	};
 
-	std::vector<std::string> rows;
 	if (!_empty_header)
 		print_row(_header);
 	for (const auto& row : _data)
@@ -88,9 +87,12 @@ void Table::sort(const std::string& column_prefix)
 	}
 	if (best_match_size == 0)
 		return;
-	std::sort(_data.begin(), _data.end(), [best_match](const auto& left, const auto& right)
+	std::sort(_data.begin(), _data.end(), [this, best_match](const auto& left, const auto& right)
 	{
-		return left[best_match] < right[best_match];
-		// TODO: Proper sorting of right-aligned data.
+		const auto& left_cell = left[best_match];
+		const auto& right_cell = right[best_match];
+		if (_alignment[best_match] == Table::Alignment::Right && left_cell.size() != right_cell.size())
+			return left_cell.size() < right_cell.size();
+		return left_cell < right_cell;
 	});
 }

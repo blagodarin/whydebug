@@ -21,13 +21,16 @@ void Table::filter(const std::string& prefix, const std::string& value)
 	const auto column = match_column(prefix);
 	if (column == _header.size())
 		return;
-	for (auto i = _indices.begin(); i != _indices.end();)
+	size_t next_index = 0;
+	for (size_t i = 0; i < _indices.size(); ++i)
 	{
-		if (_data[*i][column] != value)
-			i = _indices.erase(i);
-		else
-			++i;
+		if (_data[_indices[i]][column] == value)
+		{
+			_indices[next_index] = i;
+			++next_index;
+		}
 	}
+	_indices.resize(next_index);
 }
 
 void Table::print(std::ostream& stream) const

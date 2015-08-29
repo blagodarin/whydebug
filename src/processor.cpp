@@ -41,6 +41,12 @@ Processor::Processor(std::unique_ptr<Minidump>&& dump)
 				_table.filter(args[0], args[1], Table::Pass::Equal);
 			}
 		},
+		{ ".first", [this](const std::vector<std::string>& args)
+			{
+				::check_arguments(args, 1, 1);
+				_table.leave_first_rows(::to_ulong(args[0]));
+			}
+		},
 		{ ".ge", [this](const std::vector<std::string>& args)
 			{
 				::check_arguments(args, 2, 2);
@@ -57,6 +63,12 @@ Processor::Processor(std::unique_ptr<Minidump>&& dump)
 			{
 				::check_arguments(args, 2, 2);
 				_table.filter(args[0], args[1], Table::Pass::Containing);
+			}
+		},
+		{ ".last", [this](const std::vector<std::string>& args)
+			{
+				::check_arguments(args, 1, 1);
+				_table.leave_last_rows(::to_ulong(args[0]));
 			}
 		},
 		{ ".le", [this](const std::vector<std::string>& args)
@@ -81,6 +93,12 @@ Processor::Processor(std::unique_ptr<Minidump>&& dump)
 			{
 				::check_arguments(args, 0, 0);
 				_table.set_original();
+			}
+		},
+		{ ".rs", [this](const std::vector<std::string>& args)
+			{
+				::check_arguments(args, 1, 1);
+				_table.reverse_sort(args[0]);
 			}
 		},
 		{ ".s", [this](const std::vector<std::string>& args)
@@ -125,6 +143,14 @@ Processor::Processor(std::unique_ptr<Minidump>&& dump)
 			{
 				::check_arguments(args, 0, 0);
 				_table = _dump->print_exception_call_stack();
+			}
+		},
+		{ "?rows", [this](const std::vector<std::string>& args)
+			{
+				::check_arguments(args, 0, 0);
+				Table table({{""}, {"", Table::Alignment::Right}});
+				table.push_back({"Rows:", std::to_string(_table.rows())});
+				table.print(std::cout);
 			}
 		},
 		{ "?time", [this](const std::vector<std::string>& args)

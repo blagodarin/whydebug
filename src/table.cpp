@@ -68,6 +68,18 @@ void Table::filter(const std::string& prefix, const std::string& value, Pass pas
 	_indices.resize(next_index);
 }
 
+void Table::leave_first_rows(size_t count)
+{
+	if (_indices.size() > count)
+		_indices.erase(_indices.begin() + count, _indices.end());
+}
+
+void Table::leave_last_rows(size_t count)
+{
+	if (_indices.size() > count)
+		_indices.erase(_indices.begin(), _indices.end() - count);
+}
+
 void Table::print(std::ostream& stream) const
 {
 	std::vector<size_t> widths(_header.size(), 0);
@@ -126,6 +138,21 @@ void Table::reserve(size_t rows)
 {
 	_data.reserve(rows);
 	_indices.reserve(rows);
+}
+
+void Table::reverse_sort(const std::string& prefix)
+{
+	const auto column = match_column(prefix);
+	if (column == _header.size())
+		return;
+	std::sort(_indices.begin(), _indices.end(), [this, column](const auto lhs_row, const auto rhs_row)
+	{
+		const auto& lhs_cell = _data[lhs_row][column];
+		const auto& rhs_cell = _data[rhs_row][column];
+		if (_alignment[column] == Table::Alignment::Right && lhs_cell.size() != rhs_cell.size())
+			return lhs_cell.size() > rhs_cell.size();
+		return lhs_cell > rhs_cell;
+	});
 }
 
 void Table::set_original()

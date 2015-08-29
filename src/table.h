@@ -37,9 +37,13 @@ public:
 	Table(std::vector<ColumnHeader>&& header);
 
 	void filter(const std::string& prefix, const std::string& value, Pass pass);
+	void leave_first_rows(size_t count);
+	void leave_last_rows(size_t count);
 	void print(std::ostream&) const;
 	void push_back(std::vector<std::string>&& row);
 	void reserve(size_t rows);
+	void reverse_sort(const std::string& prefix);
+	auto rows() const { return _data.size(); }
 	void set_original();
 	void sort(const std::string& prefix);
 

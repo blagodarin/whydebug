@@ -16,7 +16,7 @@ Table::Table(std::vector<ColumnHeader>&& header)
 	}
 }
 
-void Table::filter(const std::string& prefix, const std::string& value)
+void Table::filter(const std::string& prefix, const std::string& value, Pass pass)
 {
 	const auto column = match_column(prefix);
 	if (column == _header.size())
@@ -24,9 +24,41 @@ void Table::filter(const std::string& prefix, const std::string& value)
 	size_t next_index = 0;
 	for (size_t i = 0; i < _indices.size(); ++i)
 	{
-		if (_data[_indices[i]][column] == value)
+		const auto row = _indices[i];
+		const auto& cell = _data[row][column];
+		bool passed = false;
+		switch (pass)
 		{
-			_indices[next_index] = i;
+		case Pass::Equal:
+			passed = cell == value;
+			break;
+		case Pass::NotEqual:
+			passed = cell != value;
+			break;
+		case Pass::Less:
+			passed = (_alignment[column] == Table::Alignment::Right && cell.size() != value.size())
+				? cell.size() < value.size()
+				: cell < value;
+			break;
+		case Pass::LessOrEqual:
+			passed = (_alignment[column] == Table::Alignment::Right && cell.size() != value.size())
+				? cell.size() < value.size()
+				: cell <= value;
+			break;
+		case Pass::Greater:
+			passed = (_alignment[column] == Table::Alignment::Right && cell.size() != value.size())
+				? cell.size() > value.size()
+				: cell > value;
+			break;
+		case Pass::GreaterOrEqual:
+			passed = (_alignment[column] == Table::Alignment::Right && cell.size() != value.size())
+				? cell.size() > value.size()
+				: cell >= value;
+			break;
+		}
+		if (passed)
+		{
+			_indices[next_index] = row;
 			++next_index;
 		}
 	}

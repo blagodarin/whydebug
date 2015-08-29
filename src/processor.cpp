@@ -50,13 +50,43 @@ Processor::Processor(std::unique_ptr<Minidump>&& dump)
 		{ "eq", [this](const std::vector<std::string>& args)
 			{
 				::check_arguments(args, 2, 2);
-				_table.filter(args[0], args[1]);
+				_table.filter(args[0], args[1], Table::Pass::Equal);
+			}
+		},
+		{ "ge", [this](const std::vector<std::string>& args)
+			{
+				::check_arguments(args, 2, 2);
+				_table.filter(args[0], args[1], Table::Pass::GreaterOrEqual);
+			}
+		},
+		{ "gt", [this](const std::vector<std::string>& args)
+			{
+				::check_arguments(args, 2, 2);
+				_table.filter(args[0], args[1], Table::Pass::Greater);
+			}
+		},
+		{ "le", [this](const std::vector<std::string>& args)
+			{
+				::check_arguments(args, 2, 2);
+				_table.filter(args[0], args[1], Table::Pass::LessOrEqual);
+			}
+		},
+		{ "lt", [this](const std::vector<std::string>& args)
+			{
+				::check_arguments(args, 2, 2);
+				_table.filter(args[0], args[1], Table::Pass::Less);
 			}
 		},
 		{ "m", [this](const std::vector<std::string>& args)
 			{
 				::check_arguments(args, 0, 0);
 				_table = _dump->print_modules();
+			}
+		},
+		{ "ne", [this](const std::vector<std::string>& args)
+			{
+				::check_arguments(args, 2, 2);
+				_table.filter(args[0], args[1], Table::Pass::NotEqual);
 			}
 		},
 		{ "s", [this](const std::vector<std::string>& args)

@@ -23,9 +23,19 @@ public:
 		ColumnHeader(const std::string& name, Alignment alignment) : name(name), alignment(alignment) {}
 	};
 
+	enum class Pass
+	{
+		Equal,
+		NotEqual,
+		Less,
+		LessOrEqual,
+		Greater,
+		GreaterOrEqual,
+	};
+
 	Table(std::vector<ColumnHeader>&& header);
 
-	void filter(const std::string& prefix, const std::string& value);
+	void filter(const std::string& prefix, const std::string& value, Pass pass);
 	void print(std::ostream&) const;
 	void push_back(std::vector<std::string>&& row);
 	void sort(const std::string& prefix);

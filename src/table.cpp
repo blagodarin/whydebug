@@ -1,5 +1,6 @@
 #include "table.h"
 #include <algorithm>
+#include <cassert>
 #include <cstring>
 #include <iostream>
 
@@ -22,9 +23,8 @@ void Table::filter(const std::string& prefix, const std::string& value, Pass pas
 	if (column == _header.size())
 		return;
 	size_t next_index = 0;
-	for (size_t i = 0; i < _indices.size(); ++i)
+	for (const auto row : _indices)
 	{
-		const auto row = _indices[i];
 		const auto& cell = _data[row][column];
 		bool passed = false;
 		switch (pass)
@@ -54,6 +54,9 @@ void Table::filter(const std::string& prefix, const std::string& value, Pass pas
 			passed = (_alignment[column] == Table::Alignment::Right && cell.size() != value.size())
 				? cell.size() > value.size()
 				: cell >= value;
+			break;
+		case Pass::Containing:
+			passed = cell.find(value) != std::string::npos;
 			break;
 		}
 		if (passed)
@@ -108,15 +111,28 @@ void Table::print(std::ostream& stream) const
 
 	if (!_empty_header)
 		print_row(_header);
-	for (const auto index : _indices)
-		print_row(_data[index]);
+	for (const auto row : _indices)
+		print_row(_data[row]);
 }
 
 void Table::push_back(std::vector<std::string>&& row)
 {
+	assert(row.size() == _header.size());
 	_indices.emplace_back(_data.size());
-	row.resize(_header.size());
 	_data.emplace_back(std::move(row));
+}
+
+void Table::reserve(size_t rows)
+{
+	_data.reserve(rows);
+	_indices.reserve(rows);
+}
+
+void Table::set_original()
+{
+	_indices.clear();
+	for (size_t row = 0; row < _data.size(); ++row)
+		_indices.emplace_back(row);
 }
 
 void Table::sort(const std::string& prefix)

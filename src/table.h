@@ -31,6 +31,7 @@ public:
 		LessOrEqual,
 		Greater,
 		GreaterOrEqual,
+		Containing,
 	};
 
 	Table(std::vector<ColumnHeader>&& header);
@@ -38,6 +39,8 @@ public:
 	void filter(const std::string& prefix, const std::string& value, Pass pass);
 	void print(std::ostream&) const;
 	void push_back(std::vector<std::string>&& row);
+	void reserve(size_t rows);
+	void set_original();
 	void sort(const std::string& prefix);
 
 	Table() = default;

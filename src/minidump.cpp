@@ -85,6 +85,7 @@ Table Minidump::print_memory() const
 	};
 
 	Table table({{"BASE"}, {"END"}, {"SIZE", Table::Alignment::Right}, {"USAGE"}});
+	table.reserve(_data->memory.size());
 	for (const auto& memory_range : _data->memory)
 	{
 		table.push_back({
@@ -115,6 +116,7 @@ Table Minidump::print_memory_regions() const
 	};
 
 	Table table({{"BASE"}, {"END"}, {"SIZE", Table::Alignment::Right}, {"STATE"}});
+	table.reserve(_data->memory_regions.size());
 	for (const auto& memory_region : _data->memory_regions)
 	{
 		table.push_back({
@@ -130,6 +132,7 @@ Table Minidump::print_memory_regions() const
 Table Minidump::print_modules() const
 {
 	Table table({{"#", Table::Alignment::Right}, {"NAME"}, {"VERSION"}, {"IMAGE"}, {"END"}, {"SIZE", Table::Alignment::Right}, {"PDB"}});
+	table.reserve(_data->modules.size());
 	for (const auto& module : _data->modules)
 	{
 		table.push_back({
@@ -177,6 +180,7 @@ Table Minidump::print_thread_call_stack(unsigned long thread_index) const
 Table Minidump::print_threads() const
 {
 	Table table({{"#", Table::Alignment::Right}, {"ID"}, {"STACK"}, {"END"}, {"START"}, {"CURRENT"}});
+	table.reserve(_data->threads.size());
 	for (const auto& thread : _data->threads)
 	{
 		table.push_back({
@@ -194,6 +198,7 @@ Table Minidump::print_threads() const
 Table Minidump::print_unloaded_modules() const
 {
 	Table table({{"#", Table::Alignment::Right}, {"NAME"}, {"IMAGE"}, {"END"}, {"SIZE", Table::Alignment::Right}});
+	table.reserve(_data->unloaded_modules.size());
 	for (const auto& module : _data->unloaded_modules)
 	{
 		table.push_back({

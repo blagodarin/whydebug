@@ -25,15 +25,20 @@ public:
 
 	Table(std::vector<ColumnHeader>&& header);
 
+	void filter(const std::string& prefix, const std::string& value);
 	void print(std::ostream&) const;
 	void push_back(std::vector<std::string>&& row);
-	void sort(const std::string& column_prefix);
+	void sort(const std::string& prefix);
 
 	Table() = default;
 	Table(const Table&) = delete;
 	Table(Table&&) = default;
 	Table& operator=(const Table&) = delete;
 	Table& operator=(Table&&) = default;
+
+private:
+
+	size_t match_column(const std::string& prefix) const;
 
 private:
 

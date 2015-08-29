@@ -16,6 +16,20 @@ Table::Table(std::vector<ColumnHeader>&& header)
 	}
 }
 
+void Table::filter(const std::string& prefix, const std::string& value)
+{
+	const auto column = match_column(prefix);
+	if (column == _header.size())
+		return;
+	for (auto i = _data.begin(); i != _data.end();)
+	{
+		if ((*i)[column] != value)
+			i = _data.erase(i);
+		else
+			++i;
+	}
+}
+
 void Table::print(std::ostream& stream) const
 {
 	std::vector<size_t> widths(_header.size(), 0);
@@ -65,34 +79,36 @@ void Table::print(std::ostream& stream) const
 
 void Table::push_back(std::vector<std::string>&& row)
 {
-	if (_header.size() < row.size())
-	{
-		_header.resize(row.size());
-		_alignment.resize(row.size());
-	}
+	row.resize(_header.size());
 	_data.emplace_back(std::move(row));
 }
 
-void Table::sort(const std::string& column_prefix)
+void Table::sort(const std::string& prefix)
 {
-	size_t best_match_size = 0;
-	size_t best_match = 0;
-	for (const auto& column : _header)
-	{
-		if (column.find(column_prefix) == 0 && column_prefix.size() > best_match_size)
-		{
-			best_match_size = column_prefix.size();
-			best_match = &column - &_header.front();
-		}
-	}
-	if (best_match_size == 0)
+	const auto column = match_column(prefix);
+	if (column == _header.size())
 		return;
-	std::sort(_data.begin(), _data.end(), [this, best_match](const auto& left, const auto& right)
+	std::sort(_data.begin(), _data.end(), [this, column](const auto& left, const auto& right)
 	{
-		const auto& left_cell = left[best_match];
-		const auto& right_cell = right[best_match];
-		if (_alignment[best_match] == Table::Alignment::Right && left_cell.size() != right_cell.size())
+		const auto& left_cell = left[column];
+		const auto& right_cell = right[column];
+		if (_alignment[column] == Table::Alignment::Right && left_cell.size() != right_cell.size())
 			return left_cell.size() < right_cell.size();
 		return left_cell < right_cell;
 	});
+}
+
+size_t Table::match_column(const std::string& prefix) const
+{
+	size_t best_match_size = 0;
+	size_t best_match_index = _header.size();
+	for (const auto& column : _header)
+	{
+		if (column.find(prefix) == 0 && prefix.size() > best_match_size)
+		{
+			best_match_size = prefix.size();
+			best_match_index = &column - &_header.front();
+		}
+	}
+	return best_match_index;
 }

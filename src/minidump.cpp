@@ -147,7 +147,7 @@ Table Minidump::print_modules() const
 
 Table Minidump::print_summary() const
 {
-	Table table;
+	Table table({{""}, {""}});
 	table.push_back({"Timestamp:", ::time_t_to_string(_data->timestamp)});
 	if (_data->process_id)
 		table.push_back({"Process ID:", std::to_string(_data->process_id)});

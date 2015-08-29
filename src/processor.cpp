@@ -47,6 +47,12 @@ Processor::Processor(std::unique_ptr<Minidump>&& dump)
 				_table = _dump->print_memory_regions();
 			}
 		},
+		{ "eq", [this](const std::vector<std::string>& args)
+			{
+				::check_arguments(args, 2, 2);
+				_table.filter(args[0], args[1]);
+			}
+		},
 		{ "m", [this](const std::vector<std::string>& args)
 			{
 				::check_arguments(args, 0, 0);

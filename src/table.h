@@ -55,7 +55,7 @@ public:
 
 private:
 
-	size_t match_column(const std::string& prefix) const;
+	size_t match_column(std::string prefix) const;
 
 private:
 

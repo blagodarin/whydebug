@@ -177,8 +177,10 @@ void Table::sort(const std::string& prefix)
 	});
 }
 
-size_t Table::match_column(const std::string& prefix) const
+size_t Table::match_column(std::string prefix) const
 {
+	for (auto& c : prefix)
+		c = std::toupper(c);
 	size_t best_match_size = 0;
 	size_t best_match_index = _header.size();
 	for (const auto& column : _header)

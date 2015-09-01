@@ -40,7 +40,7 @@ namespace
 	{
 		if (!thread.start_address || !thread.context.x86.eip || !thread.context.x86.ebp)
 			return {};
-		Table table({{"EBP"}, {"FUNCTION"}});
+		Table table({{"EBP"}, {"RETURN"}, {"FUNCTION"}});
 		for (const auto& entry : build_call_chain(thread))
 		{
 			table.push_back({

@@ -22,6 +22,7 @@ private:
 	const std::unique_ptr<Minidump> _dump;
 	Table _table;
 	const std::unordered_map<std::string, Command> _commands;
+	const std::unordered_map<std::string, std::unordered_map<std::string, Command>::const_iterator> _aliases;
 	int _last_command_time = 0;
 	int _last_print_time = 0;
 };

@@ -101,7 +101,7 @@ Processor::Processor(std::unique_ptr<Minidump>&& dump)
 				_table.reverse_sort(args[0]);
 			}
 		},
-		{ ".s", [this](const std::vector<std::string>& args)
+		{ ".sort", [this](const std::vector<std::string>& args)
 			{
 				::check_arguments(args, 1, 1);
 				_table.sort(args[0]);
@@ -163,6 +163,12 @@ Processor::Processor(std::unique_ptr<Minidump>&& dump)
 			}
 		},
 	}
+	, _aliases
+	{
+		{ ".f", _commands.find(".first") },
+		{ ".s", _commands.find(".sort") },
+		{ ".l", _commands.find(".last") },
+	}
 {
 }
 
@@ -193,13 +199,14 @@ bool Processor::process(const std::string& commands)
 			else
 				arguments.emplace_back(std::move(part));
 		} while (end != std::string::npos);
-		const auto i = _commands.find(name);
-		if (i == _commands.end())
+		const auto alias = _aliases.find(name);
+		const auto command = alias != _aliases.end() ? alias->second : _commands.find(name);
+		if (command == _commands.end())
 		{
 			std::cerr << "ERROR: Unknown command: " << name << std::endl;
 			return false;
 		}
-		parsed_commands.emplace_back(i->second, std::move(arguments));
+		parsed_commands.emplace_back(command->second, std::move(arguments));
 		print_table = name[0] != '?';
 	}
 

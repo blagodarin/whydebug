@@ -69,6 +69,22 @@ Table Minidump::print_exception_call_stack() const
 	return ::print_call_stack(*_data, *_data->exception->thread);
 }
 
+Table Minidump::print_handles() const
+{
+	Table table({{"#", Table::Alignment::Right}, {"HANDLE", Table::Alignment::Right}, {"TYPE"}, {"OBJECT"}});
+	table.reserve(_data->handles.size());
+	for (const auto& handle : _data->handles)
+	{
+		table.push_back({
+			std::to_string(&handle - &_data->handles.front() + 1),
+			::to_hex_min(handle.handle),
+			handle.type_name,
+			handle.object_name,
+		});
+	}
+	return std::move(table);
+}
+
 Table Minidump::print_memory() const
 {
 	const auto usage_to_string = [this](const MinidumpData::MemoryInfo& memory_info) -> std::string

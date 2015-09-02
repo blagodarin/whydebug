@@ -433,58 +433,51 @@ namespace minidump
 	// HandleDataStream //
 	//////////////////////
 
-	//
-	struct MINIDUMP_HANDLE_DESCRIPTOR
+	// MINIDUMP_HANDLE_DATA_STREAM
+	struct HandleDataHeader
 	{
-		uint64_t Handle;        //
-		uint32_t TypeNameRva;   //
-		uint32_t ObjectNameRva; //
-		uint32_t Attributes;    //
-		uint32_t GrantedAccess; //
-		uint32_t HandleCount;   //
-		uint32_t PointerCount;  //
+		uint32_t header_size; //
+		uint32_t entry_size;  //
+		uint32_t entry_count; //
+		uint32_t reserved;    //
 	};
 
-	//
-	enum MINIDUMP_HANDLE_OBJECT_INFORMATION_TYPE : uint32_t
+	// MINIDUMP_HANDLE_DESCRIPTOR
+	struct HandleData
 	{
-		MiniHandleObjectInformationNone, //
-		MiniThreadInformation1,          //
-		MiniMutantInformation1,          //
-		MiniMutantInformation2,          //
-		MiniProcessInformation1,         //
-		MiniProcessInformation2,         //
+		uint64_t handle;             //
+		uint32_t type_name_offset;   // 0 if there is no type name stored.
+		uint32_t object_name_offset; // 0 if there is no object name stored.
+		uint32_t attributes;         //
+		uint32_t granted_access;     //
+		uint32_t handle_count;       //
+		uint32_t pointer_count;      //
 	};
 
-	//
-	struct MINIDUMP_HANDLE_OBJECT_INFORMATION
+	// MINIDUMP_HANDLE_DESCRIPTOR_2
+	struct HandleData2 : public HandleData
 	{
-		uint32_t                                NextInfoRva; // 0 if there are no more elements in the list.
-		MINIDUMP_HANDLE_OBJECT_INFORMATION_TYPE InfoType;    //
-		uint32_t                                SizeOfInfo;  //
+		uint32_t object_info_offset; // Offset to HandleObjectInfo; 0 if there is no extra information.
+		uint32_t reserved;           //
 	};
 
-	//
-	struct MINIDUMP_HANDLE_DESCRIPTOR_2
+	// MINIDUMP_HANDLE_OBJECT_INFORMATION
+	struct HandleObjectInfo
 	{
-		uint64_t Handle;        //
-		uint32_t TypeNameRva;   //
-		uint32_t ObjectNameRva; //
-		uint32_t Attributes;    //
-		uint32_t GrantedAccess; //
-		uint32_t HandleCount;   //
-		uint32_t PointerCount;  //
-		uint32_t ObjectInfoRva; // 0 if there is no extra information.
-		uint32_t Reserved0;     //
-	};
+		// MINIDUMP_HANDLE_OBJECT_INFORMATION_TYPE
+		enum class Type : uint32_t
+		{
+			None,     //
+			Thread1,  //
+			Mutant1,  //
+			Mutant2,  //
+			Process1, //
+			Process2, //
+		};
 
-	//
-	struct MINIDUMP_HANDLE_DATA_STREAM
-	{
-		uint32_t SizeOfHeader;        //
-		uint32_t SizeOfDescriptor;    //
-		uint32_t NumberOfDescriptors; //
-		uint32_t Reserved;            //
+		uint32_t next_offset; // 0 if there are no more elements in the list.
+		Type     type;        //
+		uint32_t size;        // Size of the information that follows this structure.
 	};
 
 	/////////////////////////

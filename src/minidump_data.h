@@ -97,6 +97,13 @@ public:
 		uint64_t    image_end = 0;
 	};
 
+	struct Handle
+	{
+		uint64_t    handle = 0;
+		std::string type_name;
+		std::string object_name;
+	};
+
 	time_t timestamp = 0;
 	uint32_t process_id = 0;
 	time_t process_create_time = 0;
@@ -111,6 +118,7 @@ public:
 	std::map<uint64_t, MemoryInfo> memory;
 	std::map<uint64_t, MemoryRegion> memory_regions;
 	std::vector<UnloadedModule> unloaded_modules;
+	std::vector<Handle> handles;
 
 	//
 	static std::unique_ptr<MinidumpData> load(const std::string& file_name);

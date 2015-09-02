@@ -43,6 +43,53 @@ namespace
 		dump.exception->thread_id = exception.thread_id;
 	}
 
+	void load_handle_data(MinidumpData& dump, File& file, const minidump::Stream& stream)
+	{
+		CHECK(dump.handles.empty(), "Duplicate handle data list");
+
+		minidump::HandleDataHeader header;
+		CHECK(stream.location.size >= sizeof header, "Bad handle data stream");
+		CHECK(file.seek(stream.location.offset), "Bad handle data list offset");
+		CHECK(file.read(header), "Couldn't read handle data list header");
+		CHECK_GE(header.entry_count, 0, "Bad handle data list size");
+		CHECK_GE(header.entry_size, sizeof(minidump::HandleData), "Bad handle data size");
+
+		minidump::HandleData2 entry;
+		const auto entry_size = std::min(sizeof entry, header.entry_size);
+		const auto base = stream.location.offset + header.header_size;
+		for (uint32_t i = 0; i < header.entry_count; ++i)
+		{
+			CHECK(file.seek(base + i * header.entry_size), "Bad handle data list");
+			CHECK(file.read(&entry, entry_size) == entry_size, "Couldn't read handle data");
+
+			MinidumpData::Handle handle;
+			handle.handle = entry.handle;
+			if (entry.type_name_offset > 0)
+			{
+				try
+				{
+					handle.type_name = ::to_ascii(::read_string(file, entry.type_name_offset));
+				}
+				catch (const BadCheck& e)
+				{
+					std::cerr << "ERROR: Couldn't read handle type name: " << e.what() << std::endl;
+				}
+			}
+			if (entry.object_name_offset > 0)
+			{
+				try
+				{
+					handle.type_name = ::to_ascii(::read_string(file, entry.object_name_offset));
+				}
+				catch (const BadCheck& e)
+				{
+					std::cerr << "ERROR: Couldn't read handle object name: " << e.what() << std::endl;
+				}
+			}
+			dump.handles.emplace_back(handle);
+		}
+	}
+
 	void load_misc_info(MinidumpData& dump, File& file, const minidump::Stream& stream)
 	{
 		minidump::MiscInfo misc_info;
@@ -414,6 +461,9 @@ std::unique_ptr<MinidumpData> MinidumpData::load(const std::string& file_name)
 			break;
 		case minidump::Stream::Type::SystemInfo:
 			load_system_info(*dump, file, stream);
+			break;
+		case minidump::Stream::Type::HandleData:
+			load_handle_data(*dump, file, stream);
 			break;
 		case minidump::Stream::Type::UnloadedModuleList:
 			load_unloaded_module_list(*dump, file, stream);

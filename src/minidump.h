@@ -20,6 +20,7 @@ public:
 	Minidump& operator=(Minidump&&) = default;
 
 	Table print_exception_call_stack() const;
+	Table print_handles() const;
 	Table print_memory() const;
 	Table print_memory_regions() const;
 	Table print_modules() const;

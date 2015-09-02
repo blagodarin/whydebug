@@ -119,6 +119,12 @@ Processor::Processor(std::unique_ptr<Minidump>&& dump)
 				_table = _dump->print_memory_regions();
 			}
 		},
+		{ "h", [this](const std::vector<std::string>& args)
+			{
+				::check_arguments(args, 0, 0);
+				_table = _dump->print_handles();
+			}
+		},
 		{ "m", [this](const std::vector<std::string>& args)
 			{
 				::check_arguments(args, 0, 0);

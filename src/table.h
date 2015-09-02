@@ -32,6 +32,8 @@ public:
 		Greater,
 		GreaterOrEqual,
 		Containing,
+		StartingWith,
+		EndingWith,
 	};
 
 	Table(std::vector<ColumnHeader>&& header);

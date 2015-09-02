@@ -35,6 +35,12 @@ Processor::Processor(std::unique_ptr<Minidump>&& dump)
 	: _dump(std::move(dump))
 	, _commands
 	{
+		{ ".ends", [this](const std::vector<std::string>& args)
+			{
+				::check_arguments(args, 2, 2);
+				_table.filter(args[0], args[1], Table::Pass::EndingWith);
+			}
+		},
 		{ ".eq", [this](const std::vector<std::string>& args)
 			{
 				::check_arguments(args, 2, 2);
@@ -107,6 +113,12 @@ Processor::Processor(std::unique_ptr<Minidump>&& dump)
 				_table.sort(args[0]);
 			}
 		},
+		{ ".starts", [this](const std::vector<std::string>& args)
+			{
+				::check_arguments(args, 2, 2);
+				_table.filter(args[0], args[1], Table::Pass::StartingWith);
+			}
+		},
 		{ "a", [this](const std::vector<std::string>& args)
 			{
 				::check_arguments(args, 0, 0);
@@ -171,9 +183,13 @@ Processor::Processor(std::unique_ptr<Minidump>&& dump)
 	}
 	, _aliases
 	{
+		{ ".e", _commands.find(".ends") },
 		{ ".f", _commands.find(".first") },
 		{ ".s", _commands.find(".sort") },
+		{ ".st", _commands.find(".starts") },
 		{ ".l", _commands.find(".last") },
+		{ "?r", _commands.find("?rows") },
+		{ "?t", _commands.find("?time") },
 	}
 {
 }

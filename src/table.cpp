@@ -58,6 +58,12 @@ void Table::filter(const std::string& prefix, const std::string& value, Pass pas
 		case Pass::Containing:
 			passed = cell.find(value) != std::string::npos;
 			break;
+		case Pass::StartingWith:
+			passed = cell.find(value) == 0;
+			break;
+		case Pass::EndingWith:
+			passed = cell.size() >= value.size() && cell.find(value) == cell.size() - value.size();
+			break;
 		}
 		if (passed)
 		{

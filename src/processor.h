@@ -10,7 +10,7 @@ class Processor
 {
 public:
 
-	Processor(std::unique_ptr<Minidump>&& dump);
+	Processor(std::unique_ptr<Minidump>&&);
 
 	void print_summary() const;
 	bool process(const std::string& commands);

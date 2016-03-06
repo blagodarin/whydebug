@@ -36,7 +36,7 @@ public:
 		EndingWith,
 	};
 
-	Table(std::vector<ColumnHeader>&& header);
+	Table(std::vector<ColumnHeader>&&);
 
 	void filter(const std::string& prefix, const std::string& value, Pass pass);
 	void leave_first_rows(size_t count);

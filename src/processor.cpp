@@ -6,13 +6,6 @@
 
 namespace
 {
-	template <typename T>
-	void check_arguments(const T& arguments, size_t min, size_t max)
-	{
-		if (arguments.size() < min || arguments.size() > max)
-			throw std::runtime_error("Invalid arguments");
-	}
-
 	std::vector<std::string> split(const std::string& string, char separator)
 	{
 		std::vector<std::string> result;
@@ -35,222 +28,197 @@ Processor::Processor(std::unique_ptr<Minidump>&& dump)
 	: _dump(std::move(dump))
 	, _commands
 	{
-		{ { "a" }, "",
+		{ { "a" }, {},
 			"Build memory information.",
-			[this](const std::vector<std::string>& args)
+			[this](const std::vector<std::string>&)
 			{
-				::check_arguments(args, 0, 0);
 				_table = _dump->print_memory();
 			}
 		},
-		{ { "ar" }, "",
+		{ { "ar" }, {},
 			"Build memory region information.",
-			[this](const std::vector<std::string>& args)
+			[this](const std::vector<std::string>&)
 			{
-				::check_arguments(args, 0, 0);
 				_table = _dump->print_memory_regions();
 			}
 		},
-		{ { "h" }, "",
+		{ { "h" }, {},
 			"Build handle information.",
-			[this](const std::vector<std::string>& args)
+			[this](const std::vector<std::string>&)
 			{
-				::check_arguments(args, 0, 0);
 				_table = _dump->print_handles();
 			}
 		},
-		{ { "m" }, "",
+		{ { "m" }, {},
 			"Build loaded modules list.",
-			[this](const std::vector<std::string>& args)
+			[this](const std::vector<std::string>&)
 			{
-				::check_arguments(args, 0, 0);
 				_table = _dump->print_modules();
 			}
 		},
-		{ { "t" }, "[INDEX]",
-			"Build the stack of thread INDEX, or build thread list if no index is specified.",
+		{ { "t" }, { "INDEX" },
+			"Build the stack of thread INDEX.",
 			[this](const std::vector<std::string>& args)
 			{
-				::check_arguments(args, 0, 1);
-				_table = args.empty()
-					? _dump->print_threads()
-					: _dump->print_thread_call_stack(::to_ulong(args[0]));
+				_table = _dump->print_thread_call_stack(::to_ulong(args[0]));
 			}
 		},
-		{ { "um" }, "",
-			"Build unloaded modules list.",
-			[this](const std::vector<std::string>& args)
+		{ { "ts" }, {},
+			"Build thread list.",
+			[this](const std::vector<std::string>&)
 			{
-				::check_arguments(args, 0, 0);
+				_table = _dump->print_threads();
+			}
+		},
+		{ { "um" }, {},
+			"Build unloaded modules list.",
+			[this](const std::vector<std::string>&)
+			{
 				_table = _dump->print_unloaded_modules();
 			}
 		},
-		{ { "x" }, "",
+		{ { "x" }, {},
 			"Build the exception call stack.",
-			[this](const std::vector<std::string>& args)
+			[this](const std::vector<std::string>&)
 			{
-				::check_arguments(args, 0, 0);
 				_table = _dump->print_exception_call_stack();
 			}
 		},
-		{ { ".empty" }, "COLUMN",
+		{ { ".empty" }, { "COLUMN" },
 			"Leave rows where value in COLUMN is empty.",
 			[this](const std::vector<std::string>& args)
 			{
-				::check_arguments(args, 1, 1);
 				_table.filter(args[0], "", Table::Pass::EndingWith);
 			}
 		},
-		{ { ".ends", ".e" }, "COLUMN TEXT",
+		{ { ".ends", ".e" }, { "COLUMN", "TEXT" },
 			"Leave rows where value in COLUMN ends with TEXT.",
 			[this](const std::vector<std::string>& args)
 			{
-				::check_arguments(args, 2, 2);
 				_table.filter(args[0], args[1], Table::Pass::EndingWith);
 			}
 		},
-		{ {".eq"}, "COLUMN TEXT",
+		{ {".eq"}, { "COLUMN", "TEXT" },
 			"Leave rows where value in COLUMN is equal to TEXT.",
 			[this](const std::vector<std::string>& args)
 			{
-				::check_arguments(args, 2, 2);
 				_table.filter(args[0], args[1], Table::Pass::Equal);
 			}
 		},
-		{ { ".first", ".f" }, "N",
+		{ { ".first", ".f" }, { "N" },
 			"Leave the first N rows.",
 			[this](const std::vector<std::string>& args)
 			{
-				::check_arguments(args, 1, 1);
 				_table.leave_first_rows(::to_ulong(args[0]));
 			}
 		},
-		{ { ".ge" }, "COLUMN TEXT",
+		{ { ".ge" }, { "COLUMN", "TEXT" },
 			"Leave rows where value in COLUMN is not less than TEXT.",
 			[this](const std::vector<std::string>& args)
 			{
-				::check_arguments(args, 2, 2);
 				_table.filter(args[0], args[1], Table::Pass::GreaterOrEqual);
 			}
 		},
-		{ { ".gt" }, "COLUMN TEXT",
+		{ { ".gt" }, { "COLUMN", "TEXT" },
 			"Leave rows where value in COLUMN is greater than TEXT.",
 			[this](const std::vector<std::string>& args)
 			{
-				::check_arguments(args, 2, 2);
 				_table.filter(args[0], args[1], Table::Pass::Greater);
 			}
 		},
-		{ { ".has" }, "COLUMN TEXT",
+		{ { ".has" }, { "COLUMN", "TEXT" },
 			"Leave rows where value in COLUMN contains TEXT.",
 			[this](const std::vector<std::string>& args)
 			{
-				::check_arguments(args, 2, 2);
 				_table.filter(args[0], args[1], Table::Pass::Containing);
 			}
 		},
-		{ { ".last", ".l" }, "N",
+		{ { ".last", ".l" }, { "N" },
 			"Leave the last N rows.",
 			[this](const std::vector<std::string>& args)
 			{
-				::check_arguments(args, 1, 1);
 				_table.leave_last_rows(::to_ulong(args[0]));
 			}
 		},
-		{ { ".le" }, "COLUMN TEXT",
+		{ { ".le" }, { "COLUMN", "TEXT" },
 			"Leave rows where value in COLUMN is not greater than TEXT.",
 			[this](const std::vector<std::string>& args)
 			{
-				::check_arguments(args, 2, 2);
 				_table.filter(args[0], args[1], Table::Pass::LessOrEqual);
 			}
 		},
-		{ { ".lt" }, "COLUMN TEXT",
+		{ { ".lt" }, { "COLUMN", "TEXT" },
 			"Leave rows where value in COLUMN is less than TEXT.",
 			[this](const std::vector<std::string>& args)
 			{
-				::check_arguments(args, 2, 2);
 				_table.filter(args[0], args[1], Table::Pass::Less);
 			}
 		},
-		{ { ".ne" }, "COLUMN TEXT",
+		{ { ".ne" }, { "COLUMN", "TEXT" },
 			"Leave rows where value in COLUMN is not equal to TEXT.",
 			[this](const std::vector<std::string>& args)
 			{
-				::check_arguments(args, 2, 2);
 				_table.filter(args[0], args[1], Table::Pass::NotEqual);
 			}
 		},
-		{ { ".orig" }, "",
+		{ { ".orig" }, {},
 			"Clear sorting and filtering of the current output.",
 			[this](const std::vector<std::string>& args)
 			{
-				::check_arguments(args, 0, 0);
 				_table.set_original();
 			}
 		},
-		{ { ".rs" }, "COLUMN",
+		{ { ".rs" }, { "COLUMN" },
 			"Reverse sort rows by value of COLUMN.",
 			[this](const std::vector<std::string>& args)
 			{
-				::check_arguments(args, 1, 1);
 				_table.reverse_sort(args[0]);
 			}
 		},
-		{ { ".sort", ".s" }, "COLUMN",
+		{ { ".sort", ".s" }, { "COLUMN" },
 			"Sort rows by value of COLUMN.",
 			[this](const std::vector<std::string>& args)
 			{
-				::check_arguments(args, 1, 1);
 				_table.sort(args[0]);
 			}
 		},
-		{ { ".starts", ".st" }, "COLUMN TEXT",
+		{ { ".starts", ".st" }, { "COLUMN", "TEXT" },
 			"Leave rows where value in COLUMN starts with TEXT.",
 			[this](const std::vector<std::string>& args)
 			{
-				::check_arguments(args, 2, 2);
 				_table.filter(args[0], args[1], Table::Pass::StartingWith);
 			}
 		},
-		{ { "?" }, "",
+		{ { "?" }, {},
 			"Print all commands with descriptions.",
-			[this](const std::vector<std::string>& args)
+			[this](const std::vector<std::string>&)
 			{
-				::check_arguments(args, 0, 0);
 				Table table({{""}, {""}});
 				for (const auto& command : _commands)
 				{
-					std::string signature;
-					for (const auto& name : command.names)
-					{
-						if (signature.empty())
-							signature += name;
-						else
-							signature += " (" + name + ")";
-					}
-					if (!command.arguments.empty())
-						signature += ' ' + command.arguments;
+					std::string signature = command.names.primary;
+					if (!command.names.alias.empty())
+						signature += " (" + command.names.alias + ')';
+					for (const auto& argument : command.arguments)
+						signature += ' ' + argument;
 					table.push_back({signature, command.description});
 				}
 				table.print(std::cout);
 			}
 		},
-		{ { "?rows", "?r" }, "",
+		{ { "?rows", "?r" }, {},
 			"Print the number of rows in the current output (excluding filtered rows).",
-			[this](const std::vector<std::string>& args)
+			[this](const std::vector<std::string>&)
 			{
-				::check_arguments(args, 0, 0);
 				Table table({{""}, {"", Table::Alignment::Right}});
 				table.push_back({"Rows:", std::to_string(_table.rows())});
 				table.print(std::cout);
 			}
 		},
-		{ { "?time", "?t" }, "",
+		{ { "?time", "?t" }, {},
 			"Print the time used by the last command.",
-			[this](const std::vector<std::string>& args)
+			[this](const std::vector<std::string>&)
 			{
-				::check_arguments(args, 0, 0);
 				Table table({{""}, {"", Table::Alignment::Right}});
 				table.push_back({"Last command time:", std::to_string(_last_command_time) + " ms"});
 				table.push_back({"Last print time:", std::to_string(_last_print_time) + " ms"});
@@ -260,8 +228,11 @@ Processor::Processor(std::unique_ptr<Minidump>&& dump)
 	}
 {
 	for (const auto& command : _commands)
-		for (const auto& name : command.names)
-			_command_index.emplace(name, &command);
+	{
+		_command_index.emplace(command.names.primary, &command);
+		if (!command.names.alias.empty())
+			_command_index.emplace(command.names.alias, &command);
+	}
 }
 
 void Processor::print_summary() const
@@ -294,7 +265,12 @@ bool Processor::process(const std::string& commands)
 		const auto command = _command_index.find(name);
 		if (command == _command_index.end())
 		{
-			std::cerr << "ERROR: Unknown command: " << name << std::endl;
+			std::cerr << "ERROR: Unknown command '" << name << "'" << std::endl;
+			return false;
+		}
+		if (arguments.size() != command->second->arguments.size())
+		{
+			std::cerr << "ERROR: Bad number of arguments for command '" << name << "'" << std::endl;
 			return false;
 		}
 		parsed_commands.emplace_back(command->second, std::move(arguments));

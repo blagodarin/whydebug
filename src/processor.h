@@ -19,8 +19,12 @@ private:
 
 	struct Command
 	{
-		std::vector<std::string> names;
-		std::string arguments;
+		struct // For nicer initialization.
+		{
+			std::string primary;
+			std::string alias;
+		} names;
+		std::vector<std::string> arguments;
 		std::string description;
 		std::function<void(const std::vector<std::string>&)> handler;
 	};

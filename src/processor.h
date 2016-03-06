@@ -17,12 +17,18 @@ public:
 
 private:
 
-	using Command = std::function<void(const std::vector<std::string>&)>;
+	struct Command
+	{
+		std::vector<std::string> names;
+		std::string arguments;
+		std::string description;
+		std::function<void(const std::vector<std::string>&)> handler;
+	};
 
 	const std::unique_ptr<Minidump> _dump;
 	Table _table;
-	const std::unordered_map<std::string, Command> _commands;
-	const std::unordered_map<std::string, std::unordered_map<std::string, Command>::const_iterator> _aliases;
+	const std::vector<Command> _commands;
+	std::unordered_map<std::string, const Command*> _command_index;
 	int _last_command_time = 0;
 	int _last_print_time = 0;
 };

@@ -18,7 +18,7 @@ namespace
 		});
 		if (i != dump.modules.end())
 			result = i->file_name + "!" + result;
-		return std::move(result);
+		return result;
 	}
 
 	std::vector<std::pair<uint32_t, uint32_t>> build_call_chain(const MinidumpData::Thread& thread)
@@ -49,7 +49,7 @@ namespace
 				decode_code_address(dump, entry.second),
 			});
 		}
-		return std::move(table);
+		return table;
 	}
 }
 
@@ -82,7 +82,7 @@ Table Minidump::print_handles() const
 			handle.object_name,
 		});
 	}
-	return std::move(table);
+	return table;
 }
 
 Table Minidump::print_memory() const
@@ -111,7 +111,7 @@ Table Minidump::print_memory() const
 			usage_to_string(memory_range.second),
 		});
 	}
-	return std::move(table);
+	return table;
 }
 
 Table Minidump::print_memory_regions() const
@@ -142,7 +142,7 @@ Table Minidump::print_memory_regions() const
 			state_to_string(memory_region.second.state),
 		});
 	}
-	return std::move(table);
+	return table;
 }
 
 Table Minidump::print_modules() const
@@ -161,7 +161,7 @@ Table Minidump::print_modules() const
 			module.pdb_name,
 		});
 	}
-	return std::move(table);
+	return table;
 }
 
 Table Minidump::print_summary() const
@@ -183,7 +183,7 @@ Table Minidump::print_summary() const
 		if (!_data->system_info->version_name.empty())
 			table.push_back({"System version name:", _data->system_info->version_name});
 	}
-	return std::move(table);
+	return table;
 }
 
 Table Minidump::print_thread_call_stack(unsigned long thread_index) const
@@ -208,7 +208,7 @@ Table Minidump::print_threads() const
 			decode_code_address(*_data, thread.context.x86.eip),
 		});
 	}
-	return std::move(table);
+	return table;
 }
 
 Table Minidump::print_unloaded_modules() const
@@ -225,5 +225,5 @@ Table Minidump::print_unloaded_modules() const
 			::to_hex_min(module.image_end - module.image_base),
 		});
 	}
-	return std::move(table);
+	return table;
 }

@@ -419,7 +419,7 @@ std::unique_ptr<MinidumpData> MinidumpData::load(const std::string& file_name)
 		case Stream::Type::MemoryInfoList: return "MemoryInfoListStream";
 		case Stream::Type::ThreadInfoList: return "ThreadInfoListStream";
 		case Stream::Type::HandleOperationList: return "HandleOperationListStream";
-		default: return "Stream" + std::to_string(std::underlying_type_t<minidump::Stream::Type>(type));
+		default: return "Stream" + std::to_string(std::underlying_type_t<Stream::Type>(type));
 		}
 	};
 

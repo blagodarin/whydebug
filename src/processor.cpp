@@ -20,7 +20,7 @@ namespace
 			result.emplace_back(string.substr(begin, end - begin));
 			begin = end + 1;
 		}
-		return std::move(result);
+		return result;
 	}
 }
 
@@ -194,6 +194,7 @@ Processor::Processor(std::unique_ptr<Minidump>&& dump)
 			[this](const std::vector<std::string>&)
 			{
 				Table table({{""}, {""}});
+				table.reserve(_commands.size());
 				for (const auto& command : _commands)
 				{
 					std::string signature = command.names.primary;

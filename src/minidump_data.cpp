@@ -1,7 +1,7 @@
 #include "minidump_data.h"
 #include "check.h"
 #include "file.h"
-#include "minidump_structs.h"
+#include "minidump_format.h"
 #include "utils.h"
 #include <algorithm>
 #include <cstring>

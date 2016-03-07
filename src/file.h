@@ -17,14 +17,11 @@ public:
 
 	File(const std::string& name);
 
-	size_t read(void* buffer, size_t size);
+	bool read(void* buffer, size_t size);
 	bool seek(uint64_t offset);
 
 	template <typename T>
-	bool read(T& buffer)
-	{
-		return read(&buffer, sizeof buffer) == sizeof buffer;
-	}
+	bool read(T& buffer) { return read(&buffer, sizeof buffer); }
 
 private:
 	FILE* _file = nullptr;

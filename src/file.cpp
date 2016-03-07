@@ -22,9 +22,9 @@ File::File(const std::string& name)
 {
 }
 
-size_t File::read(void* buffer, size_t size)
+bool File::read(void* buffer, size_t size)
 {
-	return ::fread(buffer, 1, size, _file);
+	return ::fread(buffer, 1, size, _file) == size;
 }
 
 bool File::seek(uint64_t offset)

@@ -348,7 +348,10 @@ namespace minidump
 		uint32_t MajorVersion;
 		uint32_t MinorVersion;
 		uint32_t BuildNumber;
-		uint32_t PlatformId;
+		enum : uint32_t
+		{
+			WindowsNt = 2, // VER_PLATFORM_WIN32_NT
+		} PlatformId;
 		uint32_t CSDVersionRva;
 		union
 		{

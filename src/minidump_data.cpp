@@ -20,8 +20,8 @@ namespace
 
 	std::u16string read_string(File& file, uint32_t offset)
 	{
-		CHECK(file.seek(offset), "Bad string offset");
 		minidump::StringHeader header;
+		CHECK(file.seek(offset), "Bad string offset");
 		CHECK(file.read(header), "Couldn't read string header");
 		if (!header.size)
 			return {};
@@ -60,7 +60,7 @@ namespace
 		for (uint32_t i = 0; i < header.entry_count; ++i)
 		{
 			CHECK(file.seek(base + i * header.entry_size), "Bad handle data list");
-			CHECK(file.read(&entry, entry_size) == entry_size, "Couldn't read handle data");
+			CHECK(file.read(&entry, entry_size), "Couldn't read handle data");
 
 			MinidumpData::Handle handle;
 			handle.handle = entry.handle;
@@ -92,10 +92,10 @@ namespace
 
 	void load_misc_info(MinidumpData& dump, File& file, const minidump::Stream& stream)
 	{
-		minidump::MiscInfo misc_info;
-		CHECK(stream.location.size >= sizeof misc_info, "Bad misc info stream");
+		minidump::MiscInfo2 misc_info;
+		CHECK(stream.location.size >= sizeof(minidump::MiscInfo), "Bad misc info stream");
 		CHECK(file.seek(stream.location.offset), "Bad misc info offset");
-		CHECK(file.read(misc_info), "Couldn't read misc info");
+		CHECK(file.read(&misc_info, std::min(stream.location.size, sizeof misc_info)), "Couldn't read misc info");
 
 		if (misc_info.flags & minidump::MiscInfo::ProcessId)
 			dump.process_id = misc_info.process_id;
@@ -105,7 +105,16 @@ namespace
 			dump.process_user_time = misc_info.process_user_time;
 			dump.process_kernel_time = misc_info.process_kernel_time;
 		}
-		// TODO: Load processor power info (MINIDUMP_MISC_INFO_2).
+
+		if (stream.location.size < sizeof(minidump::MiscInfo2))
+			return;
+
+		if (misc_info.flags & minidump::MiscInfo2::ProcessorPowerInfo)
+		{
+			std::array<char, 32> buffer;
+			::snprintf(buffer.data(), buffer.size(), "%g GHz", misc_info.processor_current_mhz / 1000.0);
+			dump.cpu_frequency = buffer.data();
+		}
 	}
 
 	void load_memory_info_list(MinidumpData& dump, File& file, const minidump::Stream& stream)
@@ -165,8 +174,7 @@ namespace
 		CHECK_GE(header.entry_count, 0, "Bad memory/memory64 list size");
 
 		std::vector<minidump::MemoryRange> memory(header.entry_count);
-		const auto memory_list_size = memory.size() * sizeof(minidump::MemoryRange);
-		CHECK(file.read(memory.data(), memory_list_size) == memory_list_size, "Couldn't read memory/memory64 list");
+		CHECK(file.read(memory.data(), memory.size() * sizeof(minidump::MemoryRange)), "Couldn't read memory/memory64 list");
 		for (const auto& memory_range : memory)
 		{
 			MinidumpData::MemoryInfo m;
@@ -188,8 +196,7 @@ namespace
 		CHECK_GE(header.entry_count, 0, "Bad memory/memory64 list size");
 
 		std::vector<minidump::Memory64Range> memory(header.entry_count);
-		const auto memory_list_size = memory.size() * sizeof(minidump::Memory64Range);
-		CHECK(file.read(memory.data(), memory_list_size) == memory_list_size, "Couldn't read memory/memory64 list");
+		CHECK(file.read(memory.data(), memory.size() * sizeof(minidump::Memory64Range)), "Couldn't read memory/memory64 list");
 		for (const auto& memory_range : memory)
 		{
 			MinidumpData::MemoryInfo m;
@@ -219,8 +226,7 @@ namespace
 		CHECK_GE(header.entry_count, 0, "Bad module list size");
 
 		std::vector<minidump::Module> modules(header.entry_count);
-		const auto module_list_size = modules.size() * sizeof(minidump::Module);
-		CHECK(file.read(modules.data(), module_list_size) == module_list_size, "Couldn't read module list");
+		CHECK(file.read(modules.data(), modules.size() * sizeof(minidump::Module)), "Couldn't read module list");
 		for (const auto& module : modules)
 		{
 			MinidumpData::Module m;
@@ -265,13 +271,35 @@ namespace
 
 		dump.system_info = std::make_unique<MinidumpData::SystemInfo>();
 		dump.system_info->processors = system_info.NumberOfProcessors;
-		try
+		if (system_info.PlatformId == minidump::SystemInfo::WindowsNt)
 		{
-			dump.system_info->version_name = ::to_ascii(::read_string(file, system_info.CSDVersionRva));
-		}
-		catch (const BadCheck& e)
-		{
-			std::cerr << "ERROR: Couldn't read system version name: " << e.what() << std::endl;
+			if (system_info.MajorVersion == 5 && system_info.MinorVersion == 0)
+				dump.system_info->os_name = "Windows 2000";
+			else if (system_info.MajorVersion == 5 && (system_info.MinorVersion == 1 || system_info.MinorVersion == 2))
+				dump.system_info->os_name = "Windows XP";
+			else if (system_info.MajorVersion == 6 && system_info.MinorVersion == 0)
+				dump.system_info->os_name = "Windows Vista";
+			else if (system_info.MajorVersion == 6 && system_info.MinorVersion == 1)
+				dump.system_info->os_name = "Windows 7";
+			else if (system_info.MajorVersion == 6 && system_info.MinorVersion == 2)
+				dump.system_info->os_name = "Windows 8";
+			else if (system_info.MajorVersion == 6 && system_info.MinorVersion == 3)
+				dump.system_info->os_name = "Windows 8.1";
+			else if (system_info.MajorVersion == 10 && system_info.MinorVersion == 0)
+				dump.system_info->os_name = "Windows 10";
+			if (!dump.system_info->os_name.empty())
+			{
+				try
+				{
+					const auto& service_pack = ::to_ascii(::read_string(file, system_info.CSDVersionRva));
+					if (!service_pack.empty())
+						dump.system_info->os_name += ' ' + service_pack;
+				}
+				catch (const BadCheck& e)
+				{
+					std::cerr << "ERROR: Couldn't read OS service pack: " << e.what() << std::endl;
+				}
+			}
 		}
 	}
 
@@ -286,8 +314,7 @@ namespace
 		CHECK_GE(header.entry_count, 0, "Bad thread list size");
 
 		std::vector<minidump::Thread> threads(header.entry_count);
-		const auto thread_list_size = threads.size() * sizeof(minidump::Thread);
-		CHECK(file.read(threads.data(), thread_list_size) == thread_list_size, "Couldn't read thread list");
+		CHECK(file.read(threads.data(), threads.size() * sizeof(minidump::Thread)), "Couldn't read thread list");
 		for (const auto& thread : threads)
 		{
 			const auto index = &thread - &threads.front() + 1;
@@ -437,8 +464,7 @@ std::unique_ptr<MinidumpData> MinidumpData::load(const std::string& file_name)
 
 	std::vector<minidump::Stream> streams(header.stream_count);
 	CHECK(file.seek(header.stream_list_offset), "Bad stream list offset");
-	const auto stream_list_size = streams.size() * sizeof(minidump::Stream);
-	CHECK(file.read(streams.data(), stream_list_size) == stream_list_size, "Couldn't read stream list");
+	CHECK(file.read(streams.data(), streams.size() * sizeof(minidump::Stream)), "Couldn't read stream list");
 
 	for (const auto& stream : streams)
 	{

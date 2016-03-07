@@ -58,7 +58,7 @@ public:
 	struct SystemInfo
 	{
 		uint8_t     processors = 0;
-		std::string version_name;
+		std::string os_name;
 	};
 
 	struct MemoryInfo
@@ -109,6 +109,7 @@ public:
 	time_t process_create_time = 0;
 	uint32_t process_user_time = 0;
 	uint32_t process_kernel_time = 0;
+	std::string cpu_frequency;
 	std::vector<Module> modules;
 	std::vector<Thread> threads;
 	MemoryUsage memory_usage;

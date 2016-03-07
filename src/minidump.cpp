@@ -177,11 +177,13 @@ Table Minidump::print_summary() const
 		table.push_back({"Process user time:", ::seconds_to_string(_data->process_user_time)});
 		table.push_back({"Process kernel time:", ::seconds_to_string(_data->process_kernel_time)});
 	}
+	if (!_data->cpu_frequency.empty())
+		table.push_back({"CPU frequency:", _data->cpu_frequency});
 	if (_data->system_info)
 	{
-		table.push_back({"Number of processors:", std::to_string(_data->system_info->processors)});
-		if (!_data->system_info->version_name.empty())
-			table.push_back({"System version name:", _data->system_info->version_name});
+		table.push_back({"CPU cores:", std::to_string(_data->system_info->processors)});
+		if (!_data->system_info->os_name.empty())
+			table.push_back({"OS name:", _data->system_info->os_name});
 	}
 	return table;
 }

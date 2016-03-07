@@ -38,6 +38,13 @@ std::string to_ascii(const std::u16string& string)
 	return ascii;
 }
 
+std::string to_hex(uint16_t value)
+{
+	std::array<char, 5> buffer;
+	::snprintf(buffer.data(), buffer.size(), "%04" PRIx16, value);
+	return buffer.data();
+}
+
 std::string to_hex(uint32_t value)
 {
 	std::array<char, 9> buffer;

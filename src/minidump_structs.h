@@ -6,6 +6,10 @@
 
 namespace minidump
 {
+	//
+	//
+	//
+
 	// (MINIDUMP_LOCATION_DESCRIPTOR).
 	struct Location
 	{
@@ -30,48 +34,23 @@ namespace minidump
 	//
 	//
 
-	//
-	enum MINIDUMP_TYPE : uint32_t
-	{
-		MiniDumpNormal                         = 0x00000000, //
-		MiniDumpWithDataSegs                   = 0x00000001, //
-		MiniDumpWithFullMemory                 = 0x00000002, //
-		MiniDumpWithHandleData                 = 0x00000004, //
-		MiniDumpFilterMemory                   = 0x00000008, //
-		MiniDumpScanMemory                     = 0x00000010, //
-		MiniDumpWithUnloadedModules            = 0x00000020, //
-		MiniDumpWithIndirectlyReferencedMemory = 0x00000040, //
-		MiniDumpFilterModulePaths              = 0x00000080, //
-		MiniDumpWithProcessThreadData          = 0x00000100, //
-		MiniDumpWithPrivateReadWriteMemory     = 0x00000200, //
-		MiniDumpWithoutOptionalData            = 0x00000400, //
-		MiniDumpWithFullMemoryInfo             = 0x00000800, //
-		MiniDumpWithThreadInfo                 = 0x00001000, //
-		MiniDumpWithCodeSegs                   = 0x00002000, //
-		MiniDumpWithoutAuxiliaryState          = 0x00004000, //
-		MiniDumpWithFullAuxiliaryState         = 0x00008000, //
-		MiniDumpWithPrivateWriteCopyMemory     = 0x00010000, //
-		MiniDumpIgnoreInaccessibleMemory       = 0x00020000, //
-		MiniDumpWithTokenInformation           = 0x00040000, //
-		MiniDumpWithModuleHeaders              = 0x00080000, //
-		MiniDumpFilterTriage                   = 0x00100000, //
-		MiniDumpValidTypeFlags                 = 0x001fffff, //
-	};
-
 	// File header (MINIDUMP_HEADER).
 	struct Header
 	{
-		uint32_t signature;            //
-		uint32_t version;              // & 0xffff == 0xa793.
-		uint32_t number_of_streams;    //
-		uint32_t stream_directory_rva; //
-		uint32_t check_sum;            //
-		uint32_t time_date_stamp;      //
-		uint64_t flags;                //
+		uint32_t signature;               //
+		uint16_t version;                 //
+		uint16_t implementation_specific; // Officially documented as part of 32-bit version value.
+		uint32_t stream_count;            //
+		uint32_t stream_list_offset;      //
+		uint32_t checksum;                // Usually zero.
+		uint32_t timestamp;               // 32-bit time_t value.
+		uint64_t flags;                   // Mask of MINIDUMP_TYPE values, unrelated to actual contents.
 
-		static constexpr uint32_t SIGNATURE    = 0x504d444d; // "MDMP".
-		static constexpr uint32_t VERSION_MASK = 0x0000ffff; //
-		static constexpr uint32_t VERSION      = 0x0000a793; //
+		// MINIDUMP_SIGNATURE ("MDMP").
+		static constexpr uint32_t Signature = 0x504d444d;
+
+		// MINIDUMP_VERSION.
+		static constexpr uint16_t Version = 0xa793;
 	};
 
 	// Stream list entry (MINIDUMP_DIRECTORY).

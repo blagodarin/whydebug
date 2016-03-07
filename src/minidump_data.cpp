@@ -430,15 +430,15 @@ std::unique_ptr<MinidumpData> MinidumpData::load(const std::string& file_name)
 
 	minidump::Header header;
 	CHECK(file.read(header), "Couldn't read header");
-	CHECK_EQ(header.signature, minidump::Header::SIGNATURE, "Header signature mismatch");
-	CHECK_EQ(header.version & minidump::Header::VERSION_MASK, minidump::Header::VERSION, "Header version mismatch");
+	CHECK_EQ(header.signature, minidump::Header::Signature, "Header signature mismatch");
+	CHECK_EQ(header.version, minidump::Header::Version, "Header version mismatch");
 
-	dump->timestamp = header.time_date_stamp;
+	dump->timestamp = header.timestamp;
 
-	std::vector<minidump::Stream> streams(header.number_of_streams);
-	CHECK(file.seek(header.stream_directory_rva), "Bad stream directory offset");
-	const auto stream_directory_size = streams.size() * sizeof(minidump::Stream);
-	CHECK(file.read(streams.data(), stream_directory_size) == stream_directory_size, "Couldn't read stream directory");
+	std::vector<minidump::Stream> streams(header.stream_count);
+	CHECK(file.seek(header.stream_list_offset), "Bad stream list offset");
+	const auto stream_list_size = streams.size() * sizeof(minidump::Stream);
+	CHECK(file.read(streams.data(), stream_list_size) == stream_list_size, "Couldn't read stream list");
 
 	for (const auto& stream : streams)
 	{
@@ -478,8 +478,10 @@ std::unique_ptr<MinidumpData> MinidumpData::load(const std::string& file_name)
 			load_thread_info_list(*dump, file, stream);
 			break;
 		default:
-			const auto& stream_name = stream_type_to_string(stream.type);
-			std::cerr << "WARNING: Skipped " << stream_name << std::endl;
+			if (stream.type == minidump::Stream::Type::Unused && stream.location.offset == 0 && stream.location.size == 0)
+				break; // A valid stream list may end with such entries.
+			std::cerr << "WARNING: Skipped " << stream_type_to_string(stream.type)
+				<< " (0x" << ::to_hex(stream.location.offset) << ", " << stream.location.size << " bytes)" << std::endl;
 			break;
 		}
 	}

@@ -20,6 +20,7 @@ std::string time_t_to_string(time_t);
 std::string to_ascii(const std::u16string&);
 
 //
+std::string to_hex(uint16_t);
 std::string to_hex(uint32_t);
 std::string to_hex(uint64_t);
 

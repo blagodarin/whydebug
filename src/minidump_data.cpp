@@ -258,11 +258,10 @@ namespace
 
 	void load_module_list(MinidumpData& dump, File& file, const minidump::Stream& stream)
 	{
-		const auto version_to_string = [](uint32_t ms, uint32_t ls) -> std::string
+		const auto version_to_string = [](const uint16_t (&parts)[4]) -> std::string
 		{
 			std::array<char, 24> buffer;
-			::memset(buffer.data(), 0, buffer.size());
-			::snprintf(buffer.data(), buffer.size(), "%d.%d.%d.%d", ms >> 16, ms & 0xffff, ls >> 16, ls & 0xffff);
+			::snprintf(buffer.data(), buffer.size(), "%d.%d.%d.%d", parts[1], parts[0], parts[3], parts[2]);
 			return buffer.data();
 		};
 
@@ -281,8 +280,8 @@ namespace
 			MinidumpData::Module m;
 			m.file_path = ::to_ascii(::read_string(file, module.name_offset));
 			m.file_name = m.file_path.substr(m.file_path.find_last_of('\\') + 1);
-			m.file_version = version_to_string(module.version_info.dwFileVersionMS, module.version_info.dwFileVersionLS);
-			m.product_version = version_to_string(module.version_info.dwProductVersionMS, module.version_info.dwProductVersionLS);
+			m.file_version = version_to_string(module.version_info.file_version);
+			m.product_version = version_to_string(module.version_info.product_version);
 			m.timestamp = ::time_t_to_string(module.time_date_stamp);
 			m.image_base = module.image_base;
 			m.image_end = module.image_base + module.image_size;

@@ -106,7 +106,7 @@ namespace minidump
 		Location    context;        //
 	};
 
-	// (CONTEXT x86).
+	// Thread context for x86 (CONTEXT).
 	struct ContextX86
 	{
 		enum : uint32_t
@@ -239,19 +239,16 @@ namespace minidump
 	//
 	struct VS_FIXEDFILEINFO
 	{
-		uint32_t dwSignature;        // == 0xfeef04bd.
-		uint32_t dwStrucVersion;     //
-		uint32_t dwFileVersionMS;    //
-		uint32_t dwFileVersionLS;    //
-		uint32_t dwProductVersionMS; //
-		uint32_t dwProductVersionLS; //
-		uint32_t dwFileFlagsMask;    //
-		uint32_t dwFileFlags;        // VS_FF_*.
-		uint32_t dwFileOS;           // VOS_*.
-		uint32_t dwFileType;         // VFT_*.
-		uint32_t dwFileSubtype;      // VFT2_*.
-		uint32_t dwFileDateMS;       //
-		uint32_t dwFileDateLS;       //
+		uint32_t signature;          // 0xfeef04bd.
+		uint32_t version;            // Of this structure.
+		uint16_t file_version[4];    // Minor version, major verion, minor revision, major revision.
+		uint16_t product_version[4]; // Same as above.
+		uint32_t file_flags_mask;    //
+		uint32_t file_flags;         // VS_FF_*.
+		uint32_t file_os;            // VOS_*.
+		uint32_t file_type;          // VFT_*.
+		uint32_t file_subtype;       // VFT2_*.
+		uint32_t file_date[2];       //
 	};
 
 	// Module list header (MINIDUMP_MODULE_LIST).

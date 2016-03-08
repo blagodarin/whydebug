@@ -181,7 +181,9 @@ Table Minidump::print_summary() const
 		table.push_back({"CPU frequency:", _data->cpu_frequency});
 	if (_data->system_info)
 	{
-		table.push_back({"CPU cores:", std::to_string(_data->system_info->processors)});
+		table.push_back({"CPU:", _data->system_info->cpu_description});
+		if (_data->system_info->cpu_cores > 0)
+			table.push_back({"CPU cores:", std::to_string(_data->system_info->cpu_cores)});
 		if (!_data->system_info->os_name.empty())
 			table.push_back({"OS name:", _data->system_info->os_name});
 	}

@@ -335,47 +335,41 @@ namespace minidump
 			IA64    = 6,      // PROCESSOR_ARCHITECTURE_IA64
 			X64     = 9,      // PROCESSOR_ARCHITECTURE_AMD64
 			Unknown = 0xffff, // PROCESSOR_ARCHITECTURE_UNKNOWN
-		} ProcessorArchitecture;
-		uint16_t ProcessorLevel;
-		uint16_t ProcessorRevision;
-		uint8_t NumberOfProcessors;
+		} cpu_architecture;
+		uint16_t cpu_family;
+		uint8_t cpu_stepping;
+		uint8_t cpu_model;
+		uint8_t cpu_cores;
 		enum : uint8_t
 		{
 			Workstation      = 1, // VER_NT_WORKSTATION
 			DomainController = 2, // VER_NT_DOMAIN_CONTROLLER
 			Server           = 3, // VER_NT_SERVER
-		} ProductType;
-		uint32_t MajorVersion;
-		uint32_t MinorVersion;
-		uint32_t BuildNumber;
+		} product_type;
+		uint32_t major_version;
+		uint32_t minor_version;
+		uint32_t build_number;
 		enum : uint32_t
 		{
 			WindowsNt = 2, // VER_PLATFORM_WIN32_NT
-		} PlatformId;
-		uint32_t CSDVersionRva;
-		union
-		{
-			uint32_t Reserved1;
-			struct
-			{
-				uint16_t SuiteMask;
-				uint16_t Reserved2;
-			};
-		};
+		} platform_id;
+		uint32_t service_pack_name_offset;
+		uint16_t suite_mask;
+		uint16_t _reserved;
 		union
 		{
 			struct
 			{
-				uint32_t VendorId[3];
+				uint8_t  vendor_id[12];
 				uint32_t VersionInformation;
 				uint32_t FeatureInformation;
 				uint32_t AMDExtendedCpuFeatures;
-			} X86CpuInfo;
+			} x86;
 			struct
 			{
-				uint64_t ProcessorFeatures[2];
-			} OtherCpuInfo;
-		} Cpu;
+				uint64_t features[2];
+			} other;
+		} cpu;
 	};
 
 	////////////////////////

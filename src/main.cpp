@@ -25,7 +25,6 @@ int main(int argc, char** argv)
 	Processor processor(std::move(dump));
 	if (argc == 3)
 		return processor.process(argv[2]) ? 0 : 1;
-	processor.print_summary();
 	for (std::string line; ; )
 	{
 		std::cout << "?> ";

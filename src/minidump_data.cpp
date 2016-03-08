@@ -268,32 +268,63 @@ namespace
 		CHECK(stream.location.size >= sizeof system_info, "Bad system info stream");
 		CHECK(file.seek(stream.location.offset), "Bad system info offset");
 		CHECK(file.read(system_info), "Couldn't read system info");
+		CHECK(system_info.cpu_architecture != minidump::SystemInfo::Unknown, "Unknown CPU architecture");
+		CHECK(system_info.cpu_architecture == minidump::SystemInfo::X86, "Unsupported CPU architecture: " << system_info.cpu_architecture);
 
 		dump.system_info = std::make_unique<MinidumpData::SystemInfo>();
-		dump.system_info->processors = system_info.NumberOfProcessors;
-		if (system_info.PlatformId == minidump::SystemInfo::WindowsNt)
+		if (!::memcmp(system_info.cpu.x86.vendor_id, "GenuineIntel", sizeof system_info.cpu.x86.vendor_id))
 		{
-			if (system_info.MajorVersion == 5 && system_info.MinorVersion == 0)
-				dump.system_info->os_name = "Windows 2000";
-			else if (system_info.MajorVersion == 5 && (system_info.MinorVersion == 1 || system_info.MinorVersion == 2))
-				dump.system_info->os_name = "Windows XP";
-			else if (system_info.MajorVersion == 6 && system_info.MinorVersion == 0)
-				dump.system_info->os_name = "Windows Vista";
-			else if (system_info.MajorVersion == 6 && system_info.MinorVersion == 1)
-				dump.system_info->os_name = "Windows 7";
-			else if (system_info.MajorVersion == 6 && system_info.MinorVersion == 2)
-				dump.system_info->os_name = "Windows 8";
-			else if (system_info.MajorVersion == 6 && system_info.MinorVersion == 3)
-				dump.system_info->os_name = "Windows 8.1";
-			else if (system_info.MajorVersion == 10 && system_info.MinorVersion == 0)
-				dump.system_info->os_name = "Windows 10";
-			if (!dump.system_info->os_name.empty())
+			static const std::tuple<uint16_t, uint8_t, std::string> names[] =
 			{
+				std::make_tuple( 6, 26, "Nehalem"     ), // Bloomfield and Nehalem-EP.
+				std::make_tuple( 6, 30, "Nehalem"     ), // Clarksfield, Lynnfield and Jasper Forest.
+				std::make_tuple( 6, 37, "Westmere"    ), // Arrandale and Clarksdale.
+				std::make_tuple( 6, 42, "SandyBridge" ), // SandyBridge.
+				std::make_tuple( 6, 44, "Westmere"    ), // Gulftown and Westmere-EP.
+				std::make_tuple( 6, 45, "SandyBridge" ), // SandyBridge-E, SandyBridge-EN and SandyBridge-EP.
+				std::make_tuple( 6, 46, "Nehalem"     ), // Nehalem-EX.
+				std::make_tuple( 6, 47, "Westmere"    ), // Westmere-EX.
+				std::make_tuple( 6, 58, "IvyBridge"   ), // IvyBridge.
+			};
+
+			dump.system_info->cpu_description = "Intel";
+			const auto i = std::find_if(std::begin(names), std::end(names), [&system_info](const auto& entry)
+				{ return std::get<0>(entry) == system_info.cpu_family && std::get<1>(entry) == system_info.cpu_model; });
+			if (i != std::end(names))
+				dump.system_info->cpu_description += ' ' + std::get<2>(*i);
+		}
+		else if (!::memcmp(system_info.cpu.x86.vendor_id, "AuthenticAMD", sizeof system_info.cpu.x86.vendor_id))
+			dump.system_info->cpu_description = "AMD";
+		else
+			dump.system_info->cpu_description = "Unknown";
+		dump.system_info->cpu_description += " (family " + std::to_string(system_info.cpu_family)
+			+ ", model " + std::to_string(system_info.cpu_model)
+			+ ", stepping " + std::to_string(system_info.cpu_stepping) + ')';
+		dump.system_info->cpu_cores = system_info.cpu_cores;
+		if (system_info.platform_id == minidump::SystemInfo::WindowsNt)
+		{
+			static const std::tuple<uint32_t, uint32_t, std::string, std::string> names[] =
+			{
+				std::make_tuple(  5, 0, "Windows 2000",  "Windows 2000"           ),
+				std::make_tuple(  5, 1, "Windows XP",    "Windows XP"             ),
+				std::make_tuple(  5, 2, "Windows XP",    "Windows Server 2003"    ), // 64-bit XP and both 2003 and 2003 R2.
+				std::make_tuple(  6, 0, "Windows Vista", "Windows Server 2008"    ),
+				std::make_tuple(  6, 1, "Windows 7",     "Windows Server 2008 R2" ),
+				std::make_tuple(  6, 2, "Windows 8",     "Windows Server 2012"    ),
+				std::make_tuple(  6, 3, "Windows 8.1",   "Windows Server 2012 R2" ),
+				std::make_tuple( 10, 0, "Windows 10",    "Windows Server 2016"    ),
+			};
+
+			const auto i = std::find_if(std::begin(names), std::end(names), [&system_info](const auto& entry)
+				{ return std::get<0>(entry) == system_info.major_version && std::get<1>(entry) == system_info.minor_version; });
+			if (i != std::end(names))
+			{
+				dump.system_info->os_name = (system_info.product_type == minidump::SystemInfo::Server) ? std::get<3>(*i) : std::get<2>(*i);
 				try
 				{
-					const auto& service_pack = ::to_ascii(::read_string(file, system_info.CSDVersionRva));
+					const auto& service_pack = ::to_ascii(::read_string(file, system_info.service_pack_name_offset));
 					if (!service_pack.empty())
-						dump.system_info->os_name += ' ' + service_pack;
+						dump.system_info->os_name += " (" + service_pack + ')';
 				}
 				catch (const BadCheck& e)
 				{

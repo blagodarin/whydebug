@@ -57,7 +57,8 @@ public:
 
 	struct SystemInfo
 	{
-		uint8_t     processors = 0;
+		std::string cpu_description;
+		uint8_t     cpu_cores = 0;
 		std::string os_name;
 	};
 

@@ -56,6 +56,13 @@ Processor::Processor(std::unique_ptr<Minidump>&& dump)
 				_table = _dump->print_modules();
 			}
 		},
+		{ { "s" }, {},
+			"Build dump summary.",
+			[this](const std::vector<std::string>&)
+			{
+				_table = _dump->print_summary();
+			}
+		},
 		{ { "t" }, { "INDEX" },
 			"Build the stack of thread INDEX.",
 			[this](const std::vector<std::string>& args)
@@ -234,11 +241,6 @@ Processor::Processor(std::unique_ptr<Minidump>&& dump)
 		if (!command.names.alias.empty())
 			_command_index.emplace(command.names.alias, &command);
 	}
-}
-
-void Processor::print_summary() const
-{
-	_dump->print_summary().print(std::cout);
 }
 
 bool Processor::process(const std::string& commands)

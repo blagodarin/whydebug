@@ -18,6 +18,43 @@ namespace
 		return { static_cast<T*>(::calloc(size, 1)), ::free };
 	}
 
+	std::string to_string(minidump::Stream::Type type)
+	{
+		using namespace minidump;
+		switch (type)
+		{
+		case Stream::Type::Unused: return "UnusedStream";
+		case Stream::Type::Reserved0: return "ReservedStream0";
+		case Stream::Type::Reserved1: return "ReservedStream1";
+		case Stream::Type::ThreadList: return "ThreadListStream";
+		case Stream::Type::ModuleList: return "ModuleListStream";
+		case Stream::Type::MemoryList: return "MemoryListStream";
+		case Stream::Type::Exception: return "ExceptionStream";
+		case Stream::Type::SystemInfo: return "SystemInfoStream";
+		case Stream::Type::ThreadExList: return "ThreadExListStream";
+		case Stream::Type::Memory64List: return "Memory64ListStream";
+		case Stream::Type::CommentA: return "CommentStreamA";
+		case Stream::Type::CommentW: return "CommentStreamW";
+		case Stream::Type::HandleData: return "HandleDataStream";
+		case Stream::Type::FunctionTable: return "FunctionTableStream";
+		case Stream::Type::UnloadedModuleList: return "UnloadedModuleListStream";
+		case Stream::Type::MiscInfo: return "MiscInfoStream";
+		case Stream::Type::MemoryInfoList: return "MemoryInfoListStream";
+		case Stream::Type::ThreadInfoList: return "ThreadInfoListStream";
+		case Stream::Type::HandleOperationList: return "HandleOperationListStream";
+		default: return "Stream" + std::to_string(std::underlying_type_t<Stream::Type>(type));
+		}
+	};
+
+	void check_extra_data(const minidump::Stream& stream, uint32_t expected)
+	{
+		if (stream.location.size > expected)
+		{
+			std::cerr << "WARNING: Extra data in " << ::to_string(stream.type) << ": "
+				<< stream.location.size - expected << " bytes at 0x" << ::to_hex(stream.location.offset + expected) << std::endl;
+		}
+	}
+
 	std::u16string read_string(File& file, uint32_t offset)
 	{
 		minidump::StringHeader header;
@@ -29,7 +66,10 @@ namespace
 		CHECK(file.read(const_cast<char16_t*>(string.data()), header.size), "Couldn't read string");
 		return std::move(string);
 	}
+}
 
+namespace
+{
 	void load_exception(MinidumpData& dump, File& file, const minidump::Stream& stream)
 	{
 		CHECK(!dump.exception, "Duplicate exception");
@@ -38,6 +78,7 @@ namespace
 		CHECK(stream.location.size >= sizeof exception, "Bad exception stream");
 		CHECK(file.seek(stream.location.offset), "Bad exception offset");
 		CHECK(file.read(exception), "Couldn't read exception");
+		check_extra_data(stream, sizeof exception);
 
 		dump.exception = std::make_unique<MinidumpData::Exception>();
 		dump.exception->thread_id = exception.thread_id;
@@ -87,33 +128,6 @@ namespace
 				}
 			}
 			dump.handles.emplace_back(handle);
-		}
-	}
-
-	void load_misc_info(MinidumpData& dump, File& file, const minidump::Stream& stream)
-	{
-		minidump::MiscInfo2 misc_info;
-		CHECK(stream.location.size >= sizeof(minidump::MiscInfo), "Bad misc info stream");
-		CHECK(file.seek(stream.location.offset), "Bad misc info offset");
-		CHECK(file.read(&misc_info, std::min(stream.location.size, sizeof misc_info)), "Couldn't read misc info");
-
-		if (misc_info.flags & minidump::MiscInfo::ProcessId)
-			dump.process_id = misc_info.process_id;
-		if (misc_info.flags & minidump::MiscInfo::ProcessTimes)
-		{
-			dump.process_create_time = misc_info.process_create_time;
-			dump.process_user_time = misc_info.process_user_time;
-			dump.process_kernel_time = misc_info.process_kernel_time;
-		}
-
-		if (stream.location.size < sizeof(minidump::MiscInfo2))
-			return;
-
-		if (misc_info.flags & minidump::MiscInfo2::ProcessorPowerInfo)
-		{
-			std::array<char, 32> buffer;
-			::snprintf(buffer.data(), buffer.size(), "%g GHz", misc_info.processor_current_mhz / 1000.0);
-			dump.cpu_frequency = buffer.data();
 		}
 	}
 
@@ -207,6 +221,34 @@ namespace
 		}
 	}
 
+	void load_misc_info(MinidumpData& dump, File& file, const minidump::Stream& stream)
+	{
+		minidump::MiscInfo2 misc_info;
+		CHECK(stream.location.size >= sizeof(minidump::MiscInfo), "Bad misc info stream");
+		CHECK(file.seek(stream.location.offset), "Bad misc info offset");
+		CHECK(file.read(&misc_info, std::min(stream.location.size, sizeof misc_info)), "Couldn't read misc info");
+		check_extra_data(stream, sizeof misc_info);
+
+		if (misc_info.flags & minidump::MiscInfo::ProcessId)
+			dump.process_id = misc_info.process_id;
+		if (misc_info.flags & minidump::MiscInfo::ProcessTimes)
+		{
+			dump.process_create_time = misc_info.process_create_time;
+			dump.process_user_time = misc_info.process_user_time;
+			dump.process_kernel_time = misc_info.process_kernel_time;
+		}
+
+		if (stream.location.size < sizeof(minidump::MiscInfo2))
+			return;
+
+		if (misc_info.flags & minidump::MiscInfo2::ProcessorPowerInfo)
+		{
+			std::array<char, 32> buffer;
+			::snprintf(buffer.data(), buffer.size(), "%g GHz", misc_info.processor_current_mhz / 1000.0);
+			dump.cpu_frequency = buffer.data();
+		}
+	}
+
 	void load_module_list(MinidumpData& dump, File& file, const minidump::Stream& stream)
 	{
 		const auto version_to_string = [](uint32_t ms, uint32_t ls) -> std::string
@@ -268,6 +310,7 @@ namespace
 		CHECK(stream.location.size >= sizeof system_info, "Bad system info stream");
 		CHECK(file.seek(stream.location.offset), "Bad system info offset");
 		CHECK(file.read(system_info), "Couldn't read system info");
+		check_extra_data(stream, sizeof system_info);
 		CHECK(system_info.cpu_architecture != minidump::SystemInfo::Unknown, "Unknown CPU architecture");
 		CHECK(system_info.cpu_architecture == minidump::SystemInfo::X86, "Unsupported CPU architecture: " << system_info.cpu_architecture);
 
@@ -453,34 +496,6 @@ namespace
 
 std::unique_ptr<MinidumpData> MinidumpData::load(const std::string& file_name)
 {
-	const auto stream_type_to_string = [](minidump::Stream::Type type) -> std::string
-	{
-		using namespace minidump;
-		switch (type)
-		{
-		case Stream::Type::Unused: return "UnusedStream";
-		case Stream::Type::Reserved0: return "ReservedStream0";
-		case Stream::Type::Reserved1: return "ReservedStream1";
-		case Stream::Type::ThreadList: return "ThreadListStream";
-		case Stream::Type::ModuleList: return "ModuleListStream";
-		case Stream::Type::MemoryList: return "MemoryListStream";
-		case Stream::Type::Exception: return "ExceptionStream";
-		case Stream::Type::SystemInfo: return "SystemInfoStream";
-		case Stream::Type::ThreadExList: return "ThreadExListStream";
-		case Stream::Type::Memory64List: return "Memory64ListStream";
-		case Stream::Type::CommentA: return "CommentStreamA";
-		case Stream::Type::CommentW: return "CommentStreamW";
-		case Stream::Type::HandleData: return "HandleDataStream";
-		case Stream::Type::FunctionTable: return "FunctionTableStream";
-		case Stream::Type::UnloadedModuleList: return "UnloadedModuleListStream";
-		case Stream::Type::MiscInfo: return "MiscInfoStream";
-		case Stream::Type::MemoryInfoList: return "MemoryInfoListStream";
-		case Stream::Type::ThreadInfoList: return "ThreadInfoListStream";
-		case Stream::Type::HandleOperationList: return "HandleOperationListStream";
-		default: return "Stream" + std::to_string(std::underlying_type_t<Stream::Type>(type));
-		}
-	};
-
 	File file(file_name);
 	CHECK(file, "Couldn't open \"" << file_name << "\"");
 
@@ -537,7 +552,7 @@ std::unique_ptr<MinidumpData> MinidumpData::load(const std::string& file_name)
 		default:
 			if (stream.type == minidump::Stream::Type::Unused && stream.location.offset == 0 && stream.location.size == 0)
 				break; // A valid stream list may end with such entries.
-			std::cerr << "WARNING: Skipped " << stream_type_to_string(stream.type)
+			std::cerr << "WARNING: Skipped " << ::to_string(stream.type)
 				<< " (0x" << ::to_hex(stream.location.offset) << ", " << stream.location.size << " bytes)" << std::endl;
 			break;
 		}

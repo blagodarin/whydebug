@@ -91,6 +91,12 @@ Processor::Processor(std::unique_ptr<Minidump>&& dump)
 				_table = _dump->print_exception_call_stack();
 			}
 		},
+		{ { "." }, {},
+			"Do nothing.",
+			[this](const std::vector<std::string>&)
+			{
+			}
+		},
 		{ { ".empty" }, { "COLUMN" },
 			"Leave rows where value in COLUMN is empty.",
 			[this](const std::vector<std::string>& args)

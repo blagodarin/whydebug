@@ -377,12 +377,12 @@ namespace minidump
 	////////////////////////
 
 	// (MINIDUMP_THREAD_EX_LIST).
-	struct ThreadExListHeader : public ThreadListHeader
+	struct ThreadExListHeader : ThreadListHeader
 	{
 	};
 
 	// (MINIDUMP_THREAD_EX).
-	struct ThreadEx : public Thread
+	struct ThreadEx : Thread
 	{
 		MemoryRange backing_store; //
 	};
@@ -431,7 +431,7 @@ namespace minidump
 	};
 
 	// MINIDUMP_HANDLE_DESCRIPTOR_2
-	struct HandleData2 : public HandleData
+	struct HandleData2 : HandleData
 	{
 		uint32_t object_info_offset; // Offset to HandleObjectInfo; 0 if there is no extra information.
 		uint32_t reserved;           //

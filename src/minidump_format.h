@@ -539,6 +539,49 @@ namespace minidump
 		uint32_t processor_current_idle_state; //
 	};
 
+	// (SYSTEMTIME).
+	struct SystemTime
+	{
+		uint16_t year;         //
+		uint16_t month;        // 1 to 12.
+		uint16_t day_of_week;  // 0 to 6, 0 is Sunday.
+		uint16_t day;          // 1 to 31.
+		uint16_t hour;         // 0 to 23.
+		uint16_t minute;       // 0 to 59.
+		uint16_t second;       // 0 to 59.
+		uint16_t milliseconds; // 0 to 999.
+	};
+
+	// (TIME_ZONE_INFORMATION).
+	struct TimeZoneInformation
+	{
+		int32_t    bias;              //
+		char16_t   standard_name[32]; //
+		SystemTime standard_date;     //
+		int32_t    standard_bias;     //
+		char16_t   daylight_name[32]; //
+		SystemTime daylight_date;     //
+		int32_t    daylight_bias;     //
+	};
+
+	// (MINIDUMP_MISC_INFO_3).
+	struct MiscInfo3 : MiscInfo2
+	{
+		enum : uint32_t
+		{
+			ProcessIntegrity    = 0x00000010, //
+			ProcessExecuteFlags = 0x00000020, //
+			Timezone            = 0x00000040, //
+			ProtectedProcess    = 0x00000080, //
+		};
+
+		uint32_t            process_integrity_level; //
+		uint32_t            process_execute_flags;   //
+		uint32_t            protected_process;       //
+		uint32_t            time_zone_id;            //
+		TimeZoneInformation time_zone;               //
+	};
+
 	//////////////////////////
 	// MemoryInfoListStream //
 	//////////////////////////

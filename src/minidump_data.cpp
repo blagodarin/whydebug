@@ -223,8 +223,10 @@ namespace
 
 	void load_misc_info(MinidumpData& dump, File& file, const minidump::Stream& stream)
 	{
-		minidump::MiscInfo2 misc_info;
-		CHECK(stream.location.size >= sizeof(minidump::MiscInfo), "Bad misc info stream");
+		minidump::MiscInfo3 misc_info;
+		CHECK(stream.location.size == sizeof(minidump::MiscInfo)
+			|| stream.location.size == sizeof(minidump::MiscInfo2)
+			|| stream.location.size >= sizeof(minidump::MiscInfo3), "Bad misc info stream");
 		CHECK(file.seek(stream.location.offset), "Bad misc info offset");
 		CHECK(file.read(&misc_info, std::min(stream.location.size, sizeof misc_info)), "Couldn't read misc info");
 		check_extra_data(stream, sizeof misc_info);
@@ -247,6 +249,11 @@ namespace
 			::snprintf(buffer.data(), buffer.size(), "%g GHz", misc_info.processor_current_mhz / 1000.0);
 			dump.cpu_frequency = buffer.data();
 		}
+
+		if (stream.location.size < sizeof(minidump::MiscInfo3))
+			return;
+
+		// TODO: Parse MiscInfo3.
 	}
 
 	void load_module_list(MinidumpData& dump, File& file, const minidump::Stream& stream)

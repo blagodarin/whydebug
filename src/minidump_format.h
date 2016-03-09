@@ -287,7 +287,7 @@ namespace minidump
 	//
 	////////////////////////////////////////////////////////////
 
-	// System information (MINIDUMP_SYSTEM_INFO).
+	// (MINIDUMP_SYSTEM_INFO).
 	struct SystemInfo
 	{
 		enum : uint16_t
@@ -377,7 +377,7 @@ namespace minidump
 	//
 	////////////////////////////////////////////////////////////
 
-	// MINIDUMP_HANDLE_DATA_STREAM
+	// (MINIDUMP_HANDLE_DATA_STREAM).
 	struct HandleDataHeader
 	{
 		uint32_t header_size; //
@@ -386,7 +386,7 @@ namespace minidump
 		uint32_t reserved;    //
 	};
 
-	// MINIDUMP_HANDLE_DESCRIPTOR
+	// (MINIDUMP_HANDLE_DESCRIPTOR).
 	struct HandleData
 	{
 		uint64_t handle;             //
@@ -398,17 +398,17 @@ namespace minidump
 		uint32_t pointer_count;      //
 	};
 
-	// MINIDUMP_HANDLE_DESCRIPTOR_2
+	// (MINIDUMP_HANDLE_DESCRIPTOR_2).
 	struct HandleData2 : HandleData
 	{
 		uint32_t object_info_offset; // Offset to HandleObjectInfo; 0 if there is no extra information.
 		uint32_t reserved;           //
 	};
 
-	// MINIDUMP_HANDLE_OBJECT_INFORMATION
+	// (MINIDUMP_HANDLE_OBJECT_INFORMATION).
 	struct HandleObjectInfo
 	{
-		// MINIDUMP_HANDLE_OBJECT_INFORMATION_TYPE
+		// (MINIDUMP_HANDLE_OBJECT_INFORMATION_TYPE).
 		enum class Type : uint32_t
 		{
 			None,     //
@@ -543,10 +543,10 @@ namespace minidump
 	{
 		enum : uint32_t
 		{
-			ProcessIntegrity    = 0x00000010, //
-			ProcessExecuteFlags = 0x00000020, //
-			Timezone            = 0x00000040, //
-			ProtectedProcess    = 0x00000080, //
+			ProcessIntegrity    = 0x00000010, // (MINIDUMP_MISC3_PROCESS_INTEGRITY).
+			ProcessExecuteFlags = 0x00000020, // (MINIDUMP_MISC3_PROCESS_EXECUTE_FLAGS).
+			Timezone            = 0x00000040, // (MINIDUMP_MISC3_TIMEZONE).
+			ProtectedProcess    = 0x00000080, // (MINIDUMP_MISC3_PROTECTED_PROCESS).
 		};
 
 		uint32_t            process_integrity_level; //
@@ -554,6 +554,46 @@ namespace minidump
 		uint32_t            protected_process;       //
 		uint32_t            time_zone_id;            //
 		TimeZoneInformation time_zone;               //
+	};
+
+	// (MINIDUMP_MISC_INFO_4).
+	struct MiscInfo4 : MiscInfo3
+	{
+		enum : uint32_t
+		{
+			BuildString = 0x00000100, // (MINIDUMP_MISC4_BUILDSTRING).
+		};
+
+		uint16_t build_string[260];      //
+		uint16_t debug_build_string[40]; //
+	};
+
+	// (XSTATE_FEATURE).
+	struct XStateFeature
+	{
+		uint32_t offset;
+		uint32_t size;
+	};
+
+	// (XSTATE_CONFIG_FEATURE_MSC_INFO).
+	struct XStateInfo
+	{
+		uint32_t      size;             //
+		uint32_t      context_size;     //
+		uint64_t      enabled_features; //
+		XStateFeature features[64];     //
+	};
+
+	// (MINIDUMP_MISC_INFO_5).
+	struct MiscInfo5 : MiscInfo4
+	{
+		enum : uint32_t
+		{
+			ProcessCookie = 0x00000200, // (MINIDUMP_MISC5_PROCESS_COOKIE).
+		};
+
+		XStateInfo xstate;         //
+		uint32_t   process_cookie; //
 	};
 
 	////////////////////////////////////////////////////////////

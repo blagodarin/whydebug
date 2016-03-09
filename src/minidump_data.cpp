@@ -227,10 +227,12 @@ namespace
 
 	void load_misc_info(MinidumpData& dump, File& file, const minidump::Stream& stream)
 	{
-		minidump::MiscInfo3 misc_info;
+		minidump::MiscInfo5 misc_info;
 		CHECK(stream.location.size == sizeof(minidump::MiscInfo)
 			|| stream.location.size == sizeof(minidump::MiscInfo2)
-			|| stream.location.size >= sizeof(minidump::MiscInfo3), "Bad misc info stream");
+			|| stream.location.size == sizeof(minidump::MiscInfo3)
+			|| stream.location.size == sizeof(minidump::MiscInfo4)
+			|| stream.location.size >= sizeof(minidump::MiscInfo5), "Bad misc info stream");
 		CHECK(file.seek(stream.location.offset), "Bad misc info offset");
 		CHECK(file.read(&misc_info, std::min(stream.location.size, sizeof misc_info)), "Couldn't read misc info");
 		check_extra_data(stream, sizeof misc_info);
@@ -258,6 +260,16 @@ namespace
 			return;
 
 		// TODO: Parse MiscInfo3.
+
+		if (stream.location.size < sizeof(minidump::MiscInfo4))
+			return;
+
+		// TODO: Parse MiscInfo4.
+
+		if (stream.location.size < sizeof(minidump::MiscInfo5))
+			return;
+
+		// TODO: Parse MiscInfo5.
 	}
 
 	void load_module_list(MinidumpData& dump, File& file, const minidump::Stream& stream)

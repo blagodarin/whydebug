@@ -42,7 +42,11 @@ namespace
 		case Stream::Type::MemoryInfoList: return "MemoryInfoListStream";
 		case Stream::Type::ThreadInfoList: return "ThreadInfoListStream";
 		case Stream::Type::HandleOperationList: return "HandleOperationListStream";
-		default: return "Stream" + std::to_string(std::underlying_type_t<Stream::Type>(type));
+		case Stream::Type::Token: return "TokenStream";
+		case Stream::Type::JavaScriptData: return "JavaScriptDataStream";
+		case Stream::Type::SystemMemoryInfo: return "SystemMemoryInfoStream";
+		case Stream::Type::ProcessVmCounters: return "ProcessVmCountersStream";
+		default: throw std::logic_error("Failed to find the name for stream " + std::to_string(std::underlying_type_t<Stream::Type>(type)));
 		}
 	};
 
@@ -50,8 +54,8 @@ namespace
 	{
 		if (stream.location.size > expected)
 		{
-			std::cerr << "WARNING: Extra data in " << ::to_string(stream.type) << ": "
-				<< stream.location.size - expected << " bytes at 0x" << ::to_hex(stream.location.offset + expected) << std::endl;
+			std::cerr << "WARNING: Extra data in " << ::to_string(stream.type) << " ("
+				<< stream.location.size - expected << " bytes at 0x" << ::to_hex(stream.location.offset + expected) << ")" << std::endl;
 		}
 	}
 
@@ -277,12 +281,23 @@ namespace
 		CHECK(file.read(modules.data(), modules.size() * sizeof(minidump::Module)), "Couldn't read module list");
 		for (const auto& module : modules)
 		{
+			if (!module.version_info.signature && !module.version_info.version)
+				continue; // No version information is present.
+			CHECK_EQ(module.version_info.signature, minidump::VersionInfo::Signature, "Bad module version signature");
+			CHECK_EQ(module.version_info.version, minidump::VersionInfo::Version, "Bad module version version");
+		}
+
+		for (const auto& module : modules)
+		{
 			MinidumpData::Module m;
 			m.file_path = ::to_ascii(::read_string(file, module.name_offset));
 			m.file_name = m.file_path.substr(m.file_path.find_last_of('\\') + 1);
-			m.file_version = version_to_string(module.version_info.file_version);
-			m.product_version = version_to_string(module.version_info.product_version);
-			m.timestamp = ::time_t_to_string(module.time_date_stamp);
+			if (module.version_info.signature)
+			{
+				m.file_version = version_to_string(module.version_info.file_version);
+				m.product_version = version_to_string(module.version_info.product_version);
+			}
+			m.timestamp = ::time_t_to_string(module.timestamp);
 			m.image_base = module.image_base;
 			m.image_end = module.image_base + module.image_size;
 			if (module.cv_record.size > 0)
@@ -520,46 +535,47 @@ std::unique_ptr<MinidumpData> MinidumpData::load(const std::string& file_name)
 
 	for (const auto& stream : streams)
 	{
+		using namespace minidump;
 		switch (stream.type)
 		{
-		case minidump::Stream::Type::ThreadList:
+		case Stream::Type::ThreadList:
 			load_thread_list(*dump, file, stream);
 			break;
-		case minidump::Stream::Type::ModuleList:
+		case Stream::Type::ModuleList:
 			load_module_list(*dump, file, stream);
 			break;
-		case minidump::Stream::Type::MemoryList:
+		case Stream::Type::MemoryList:
 			load_memory_list(*dump, file, stream);
 			break;
-		case minidump::Stream::Type::Memory64List:
+		case Stream::Type::Memory64List:
 			load_memory64_list(*dump, file, stream);
 			break;
-		case minidump::Stream::Type::Exception:
+		case Stream::Type::Exception:
 			load_exception(*dump, file, stream);
 			break;
-		case minidump::Stream::Type::SystemInfo:
+		case Stream::Type::SystemInfo:
 			load_system_info(*dump, file, stream);
 			break;
-		case minidump::Stream::Type::HandleData:
+		case Stream::Type::HandleData:
 			load_handle_data(*dump, file, stream);
 			break;
-		case minidump::Stream::Type::UnloadedModuleList:
+		case Stream::Type::UnloadedModuleList:
 			load_unloaded_module_list(*dump, file, stream);
 			break;
-		case minidump::Stream::Type::MiscInfo:
+		case Stream::Type::MiscInfo:
 			load_misc_info(*dump, file, stream);
 			break;
-		case minidump::Stream::Type::MemoryInfoList:
+		case Stream::Type::MemoryInfoList:
 			load_memory_info_list(*dump, file, stream);
 			break;
-		case minidump::Stream::Type::ThreadInfoList:
+		case Stream::Type::ThreadInfoList:
 			load_thread_info_list(*dump, file, stream);
 			break;
 		default:
-			if (stream.type == minidump::Stream::Type::Unused && stream.location.offset == 0 && stream.location.size == 0)
+			if (stream.type == Stream::Type::Unused && stream.location.offset == 0 && stream.location.size == 0)
 				break; // A valid stream list may end with such entries.
-			std::cerr << "WARNING: Skipped " << ::to_string(stream.type)
-				<< " (0x" << ::to_hex(stream.location.offset) << ", " << stream.location.size << " bytes)" << std::endl;
+			std::cerr << "WARNING: Skipped unknown stream " << std::to_string(std::underlying_type_t<Stream::Type>(stream.type))
+				<< " (" << stream.location.size << " bytes at 0x" << ::to_hex(stream.location.offset) << ")" << std::endl;
 			break;
 		}
 	}

@@ -6,9 +6,11 @@
 
 namespace minidump
 {
+	////////////////////////////////////////////////////////////
 	//
+	// Common structures.
 	//
-	//
+	////////////////////////////////////////////////////////////
 
 	// (MINIDUMP_LOCATION_DESCRIPTOR).
 	struct Location
@@ -27,12 +29,14 @@ namespace minidump
 	// UTF-16 string header (MINIDUMP_STRING).
 	struct StringHeader
 	{
-		uint32_t size; // Size of the string in *bytes*, excluding 0-terminator.
+		uint32_t size; // Size of the string in *bytes*, excluding null-terminator.
 	};
 
+	////////////////////////////////////////////////////////////
 	//
 	//
 	//
+	////////////////////////////////////////////////////////////
 
 	// File header (MINIDUMP_HEADER).
 	struct Header
@@ -46,11 +50,8 @@ namespace minidump
 		uint32_t timestamp;               // 32-bit time_t value.
 		uint64_t flags;                   // Mask of MINIDUMP_TYPE values, unrelated to actual contents.
 
-		// MINIDUMP_SIGNATURE ("MDMP").
-		static constexpr uint32_t Signature = 0x504d444d;
-
-		// MINIDUMP_VERSION.
-		static constexpr uint16_t Version = 0xa793;
+		static constexpr uint32_t Signature = 0x504d444d; // "MDMP" (MINIDUMP_SIGNATURE).
+		static constexpr uint16_t Version = 0xa793; // (MINIDUMP_VERSION).
 	};
 
 	// Stream list entry (MINIDUMP_DIRECTORY).
@@ -61,32 +62,38 @@ namespace minidump
 			Unused              = 0,      // Reserved.
 			Reserved0           = 1,      // Reserved.
 			Reserved1           = 2,      // Reserved.
-			ThreadList          = 3,      // Thread information (MINIDUMP_THREAD_LIST).
-			ModuleList          = 4,      // Module information (MINIDUMP_MODULE_LIST).
-			MemoryList          = 5,      // Memory allocation information (MINIDUMP_MEMORY_LIST).
-			Exception           = 6,      // Exception information (MINIDUMP_EXCEPTION_STREAM).
-			SystemInfo          = 7,      // General system information (MINIDUMP_SYSTEM_INFO).
-			ThreadExList        = 8,      // Extended thread information (MINIDUMP_THREAD_EX_LIST).
-			Memory64List        = 9,      // Memory allocation information (MINIDUMP_MEMORY64_LIST).
-			CommentA            = 10,     // ANSI string used for documentation purposes.
-			CommentW            = 11,     // Unicode string used for documentation purposes.
-			HandleData          = 12,     // High-level information about the active operating system handles (MINIDUMP_HANDLE_DATA_STREAM).
-			FunctionTable       = 13,     // Function table information (MINIDUMP_FUNCTION_TABLE_STREAM).
-			UnloadedModuleList  = 14,     // Module information for the unloaded modules (MINIDUMP_UNLOADED_MODULE_LIST).
-			MiscInfo            = 15,     // Miscellaneous information (MINIDUMP_MISC_INFO or MINIDUMP_MISC_INFO_2).
-			MemoryInfoList      = 16,     // Memory region description information (MINIDUMP_MEMORY_INFO_LIST).
-			ThreadInfoList      = 17,     // Thread state information (MINIDUMP_THREAD_INFO_LIST).
-			HandleOperationList = 18,     // Operation list information (MINIDUMP_HANDLE_OPERATION_LIST).
-			LastReserved        = 0xffff, // Any value greater than this value will not be used by the system (MINIDUMP_USER_STREAM).
+			ThreadList          = 3,      // Thread information (ThreadListStream).
+			ModuleList          = 4,      // Module information (ModuleListStream).
+			MemoryList          = 5,      // Memory allocation information (MemoryListStream).
+			Exception           = 6,      // Exception information (ExceptionStream).
+			SystemInfo          = 7,      // General system information (SystemInfoStream).
+			ThreadExList        = 8,      // Extended thread information (ThreadExListStream).
+			Memory64List        = 9,      // Memory allocation information (Memory64ListStream).
+			CommentA            = 10,     // ANSI string used for documentation purposes (CommentStreamA).
+			CommentW            = 11,     // Unicode string used for documentation purposes (CommentStreamW).
+			HandleData          = 12,     // High-level information about the active operating system handles (HandleDataStream).
+			FunctionTable       = 13,     // Function table information (FunctionTableStream).
+			UnloadedModuleList  = 14,     // Module information for the unloaded modules (UnloadedModuleListStream).
+			MiscInfo            = 15,     // Miscellaneous information (MiscInfoStream).
+			MemoryInfoList      = 16,     // Memory region description information (MemoryInfoListStream).
+			ThreadInfoList      = 17,     // Thread state information (ThreadInfoListStream).
+			HandleOperationList = 18,     // Operation list information (HandleOperationListStream).
+			Token               = 19,     // ... (TokenStream).
+			JavaScriptData      = 20,     // ... (JavaScriptDataStream).
+			SystemMemoryInfo    = 21,     // ... (SystemMemoryInfoStream).
+			ProcessVmCounters   = 22,     // ... (ProcessVmCountersStream).
+			LastReserved        = 0xffff, // Any value greater than this value will not be used by the system (LastReservedStream).
 		};
 
 		Type     type;     //
 		Location location; //
 	};
 
-	//////////////////////
-	// ThreadListStream //
-	//////////////////////
+	////////////////////////////////////////////////////////////
+	//
+	// Thread information (ThreadListStream).
+	//
+	////////////////////////////////////////////////////////////
 
 	// Thread list header (MINIDUMP_THREAD_LIST).
 	struct ThreadListHeader
@@ -103,7 +110,7 @@ namespace minidump
 		uint32_t    priority;       //
 		uint64_t    teb;            //
 		MemoryRange stack;          //
-		Location    context;        //
+		Location    context;        // Thread context location (see below).
 	};
 
 	// Thread context for x86 (CONTEXT).
@@ -168,9 +175,11 @@ namespace minidump
 		uint8_t extended_registers[512];
 	};
 
-	//////////////////////
-	// ModuleListStream //
-	//////////////////////
+	////////////////////////////////////////////////////////////
+	//
+	// Module information (ModuleListStream).
+	//
+	////////////////////////////////////////////////////////////
 
 	//
 	enum : uint32_t
@@ -183,72 +192,22 @@ namespace minidump
 		VS_FF_SPECIALBUILD = 0x00000020, //
 	};
 
-	// The operating system for which the file was designed.
-	enum : uint32_t
+	// File version information (VS_FIXEDFILEINFO).
+	struct VersionInfo
 	{
-		VOS_UNKNOWN       = 0x00000000, // Unknown.
-		VOS__WINDOWS16    = 0x00000001, // 16-bit Windows.
-		VOS__PM16         = 0x00000002, // 16-bit Presentation Manager.
-		VOS__PM32         = 0x00000003, // 32-bit Presentation Manager.
-		VOS__WINDOWS32    = 0x00000004, // 32-bit Windows.
-		VOS_DOS           = 0x00010000, // MS-DOS.
-		VOS_DOS_WINDOWS16 = 0x00010001, // 16-bit Windows running on MS-DOS.
-		VOS_DOS_WINDOWS32 = 0x00010004, // 32-bit Windows running on MS-DOS.
-		VOS_OS216         = 0x00020000, // 16-bit OS/2.
-		VOS_OS216_PM16    = 0x00020002, // 16-bit Presentation Manager running on 16-bit OS/2.
-		VOS_OS232         = 0x00030000, // 32-bit OS/2.
-		VOS_OS232_PM32    = 0x00030003, // 32-bit Presentation Manager running on 32-bit OS/2.
-		VOS_NT            = 0x00040000, // Windows NT.
-		VOS_NT_WINDOWS32  = 0x00040004, // Windows NT.
-	};
-
-	//
-	enum : uint32_t
-	{
-		VFT_UNKNOWN    = 0x00000000, // Unknown.
-		VFT_APP        = 0x00000001, // Application.
-		VFT_DLL        = 0x00000002, // DLL.
-		VFT_DRV        = 0x00000003, // Device driver.
-		VFT_FONT       = 0x00000004, // Font.
-		VFT_VXD        = 0x00000005, // Virtual device.
-		VFT_STATIC_LIB = 0x00000007, // Static-link library.
-	};
-
-	//
-	enum : uint32_t
-	{
-		VFT2_UNKNOWN               = 0x00000000, // Unknown.
-
-		VFT2_DRV_PRINTER           = 0x00000001, //
-		VFT2_DRV_KEYBOARD          = 0x00000002, //
-		VFT2_DRV_LANGUAGE          = 0x00000003, //
-		VFT2_DRV_DISPLAY           = 0x00000004, //
-		VFT2_DRV_MOUSE             = 0x00000005, //
-		VFT2_DRV_NETWORK           = 0x00000006, //
-		VFT2_DRV_SYSTEM            = 0x00000007, //
-		VFT2_DRV_INSTALLABLE       = 0x00000008, //
-		VFT2_DRV_SOUND             = 0x00000009, //
-		VFT2_DRV_COMM              = 0x0000000A, //
-		VFT2_DRV_VERSIONED_PRINTER = 0x0000000C, //
-
-		VFT2_FONT_RASTER           = 0x00000001, //
-		VFT2_FONT_VECTOR           = 0x00000002, //
-		VFT2_FONT_TRUETYPE         = 0x00000003, //
-	};
-
-	//
-	struct VS_FIXEDFILEINFO
-	{
-		uint32_t signature;          // 0xfeef04bd.
+		uint32_t signature;          //
 		uint32_t version;            // Of this structure.
 		uint16_t file_version[4];    // Minor version, major verion, minor revision, major revision.
 		uint16_t product_version[4]; // Same as above.
 		uint32_t file_flags_mask;    //
 		uint32_t file_flags;         // VS_FF_*.
-		uint32_t file_os;            // VOS_*.
-		uint32_t file_type;          // VFT_*.
-		uint32_t file_subtype;       // VFT2_*.
+		uint32_t file_os;            //
+		uint32_t file_type;          //
+		uint32_t file_subtype;       //
 		uint32_t file_date[2];       //
+
+		static constexpr uint32_t Signature = 0xfeef04bd;
+		static constexpr uint32_t Version = 0x00010000;
 	};
 
 	// Module list header (MINIDUMP_MODULE_LIST).
@@ -260,18 +219,18 @@ namespace minidump
 	// Module list entry (MINIDUMP_MODULE).
 	struct Module
 	{
-		uint64_t         image_base;      //
-		uint32_t         image_size;      //
-		uint32_t         check_sum;       //
-		uint32_t         time_date_stamp; //
-		uint32_t         name_offset;     //
-		VS_FIXEDFILEINFO version_info;    //
-		Location         cv_record;       //
-		Location         misc_record;     //
-		uint32_t         reserved[4];     //
+		uint64_t    image_base;   //
+		uint32_t    image_size;   //
+		uint32_t    check_sum;    //
+		uint32_t    timestamp;    // 32-bit time_t value.
+		uint32_t    name_offset;  //
+		VersionInfo version_info; //
+		Location    cv_record;    // CodeView record location (see below).
+		Location    misc_record;  //
+		uint32_t    reserved[4];  //
 	};
 
-	//
+	// CodeView record for PDB 7.0.
 	struct CodeViewRecordPDB70
 	{
 		uint32_t signature;    //
@@ -283,9 +242,11 @@ namespace minidump
 		static constexpr uint32_t Signature = 0x53445352; // "RSDS".
 	};
 
-	//////////////////////
-	// MemoryListStream //
-	//////////////////////
+	////////////////////////////////////////////////////////////
+	//
+	// Memory allocation information (MemoryListStream).
+	//
+	////////////////////////////////////////////////////////////
 
 	// Memory list header (MINIDUMP_MEMORY_LIST).
 	struct MemoryListHeader
@@ -293,9 +254,11 @@ namespace minidump
 		uint32_t entry_count; //
 	};
 
-	/////////////////////
-	// ExceptionStream //
-	/////////////////////
+	////////////////////////////////////////////////////////////
+	//
+	// Exception information (ExceptionStream).
+	//
+	////////////////////////////////////////////////////////////
 
 	// (MINIDUMP_EXCEPTION).
 	struct Exception
@@ -318,9 +281,11 @@ namespace minidump
 		Location  thread_context;  //
 	};
 
-	//////////////////////
-	// SystemInfoStream //
-	//////////////////////
+	////////////////////////////////////////////////////////////
+	//
+	// General system information (SystemInfoStream).
+	//
+	////////////////////////////////////////////////////////////
 
 	// System information (MINIDUMP_SYSTEM_INFO).
 	struct SystemInfo
@@ -369,9 +334,11 @@ namespace minidump
 		} cpu;
 	};
 
-	////////////////////////
-	// ThreadExListStream //
-	////////////////////////
+	////////////////////////////////////////////////////////////
+	//
+	// Extended thread information (ThreadExListStream).
+	//
+	////////////////////////////////////////////////////////////
 
 	// (MINIDUMP_THREAD_EX_LIST).
 	struct ThreadExListHeader : ThreadListHeader
@@ -384,9 +351,11 @@ namespace minidump
 		MemoryRange backing_store; //
 	};
 
-	////////////////////////
-	// Memory64ListStream //
-	////////////////////////
+	////////////////////////////////////////////////////////////
+	//
+	// Memory allocation information (Memory64ListStream).
+	//
+	////////////////////////////////////////////////////////////
 
 	// (MINIDUMP_MEMORY64_LIST).
 	struct Memory64ListHeader
@@ -402,9 +371,11 @@ namespace minidump
 		uint64_t size; //
 	};
 
-	//////////////////////
-	// HandleDataStream //
-	//////////////////////
+	////////////////////////////////////////////////////////////
+	//
+	// High-level information about the active operating system handles (HandleDataStream).
+	//
+	////////////////////////////////////////////////////////////
 
 	// MINIDUMP_HANDLE_DATA_STREAM
 	struct HandleDataHeader
@@ -453,9 +424,11 @@ namespace minidump
 		uint32_t size;        // Size of the information that follows this structure.
 	};
 
-	/////////////////////////
-	// FunctionTableStream //
-	/////////////////////////
+	////////////////////////////////////////////////////////////
+	//
+	// Function table information (FunctionTableStream).
+	//
+	////////////////////////////////////////////////////////////
 
 	// (MINIDUMP_FUNCTION_TABLE_STREAM).
 	struct FunctionTableStream
@@ -478,9 +451,11 @@ namespace minidump
 		uint32_t SizeOfAlignPad; //
 	};
 
-	//////////////////////////////
-	// UnloadedModuleListStream //
-	//////////////////////////////
+	////////////////////////////////////////////////////////////
+	//
+	// Module information for the unloaded modules (UnloadedModuleListStream).
+	//
+	////////////////////////////////////////////////////////////
 
 	// (MINIDUMP_UNLOADED_MODULE_LIST).
 	struct UnloadedModuleListHeader
@@ -500,9 +475,11 @@ namespace minidump
 		uint32_t name_offset;     //
 	};
 
-	////////////////////
-	// MiscInfoStream //
-	////////////////////
+	////////////////////////////////////////////////////////////
+	//
+	// Miscellaneous information (MiscInfoStream).
+	//
+	////////////////////////////////////////////////////////////
 
 	// (MINIDUMP_MISC_INFO).
 	struct MiscInfo
@@ -579,9 +556,11 @@ namespace minidump
 		TimeZoneInformation time_zone;               //
 	};
 
-	//////////////////////////
-	// MemoryInfoListStream //
-	//////////////////////////
+	////////////////////////////////////////////////////////////
+	//
+	// Memory region description information (MemoryInfoListStream).
+	//
+	////////////////////////////////////////////////////////////
 
 	// (MINIDUMP_MEMORY_INFO_LIST).
 	struct MemoryInfoListHeader
@@ -621,9 +600,11 @@ namespace minidump
 		uint32_t __alignment2;      //
 	};
 
-	//////////////////////////
-	// ThreadInfoListStream //
-	//////////////////////////
+	////////////////////////////////////////////////////////////
+	//
+	// Thread state information (ThreadInfoListStream).
+	//
+	////////////////////////////////////////////////////////////
 
 	//
 	enum : uint32_t
@@ -659,50 +640,11 @@ namespace minidump
 		uint64_t Affinity;     //
 	};
 
-	///////////////////////////////
-	// HandleOperationListStream //
-	///////////////////////////////
-
-	// Handle operation type.
-	enum eHANDLE_TRACE_OPERATIONS : uint32_t
-	{
-		OperationDbUnused, //
-		OperationDbOPEN,   // Open (create) handle operation.
-		OperationDbCLOSE,  // Close handle operation.
-		OperationDbBADREF, // Invalid handle operation.
-	};
-
+	////////////////////////////////////////////////////////////
 	//
-	struct AVRF_BACKTRACE_INFORMATION
-	{
-		uint32_t Depth;               // Number of traces collected.
-		uint32_t Index;               //
-		uint64_t ReturnAddresses[32]; //
-	};
-
+	// User streams.
 	//
-	struct AVRF_HANDLE_OPERATION
-	{
-		uint64_t                   Handle;               //
-		uint32_t                   ProcessId;            //
-		uint32_t                   ThreadId;             //
-		eHANDLE_TRACE_OPERATIONS   OperationType;        //
-		uint32_t                   Spare0;               //
-		AVRF_BACKTRACE_INFORMATION BackTraceInformation; //
-	};
-
-	//
-	struct MINIDUMP_HANDLE_OPERATION_LIST
-	{
-		uint32_t SizeOfHeader;    //
-		uint32_t SizeOfEntry;     //
-		uint32_t NumberOfEntries; //
-		uint32_t Reserved;        //
-	};
-
-	//////////////////
-	// User streams //
-	//////////////////
+	////////////////////////////////////////////////////////////
 
 	// User stream header (MINIDUMP_USER_STREAM).
 	struct UserStreamHeader

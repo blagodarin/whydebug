@@ -682,6 +682,32 @@ namespace minidump
 
 	////////////////////////////////////////////////////////////
 	//
+	// Process VM counters (ProcessVmCountersStream).
+	//
+	////////////////////////////////////////////////////////////
+
+	// (MINIDUMP_PROCESS_VM_COUNTERS_1).
+	// See also PROCESS_MEMORY_COUNTERS.
+	struct VmCounters1
+	{
+		uint16_t revision;                        //
+		uint16_t flags;                           // Zero in revision 1.
+		uint32_t page_fault_count;                //
+		uint64_t peak_working_set_size;           //
+		uint64_t working_set_size;                //
+		uint64_t quota_peak_paged_pool_usage;     //
+		uint64_t quota_paged_pool_usage;          //
+		uint64_t quota_peak_non_paged_pool_usage; //
+		uint64_t quota_non_paged_pool_usage;      //
+		uint64_t page_file_usage;                 //
+		uint64_t peak_page_file_usage;            //
+		uint64_t private_usage;                   //
+
+		static constexpr uint16_t Revision = 1;
+	};
+
+	////////////////////////////////////////////////////////////
+	//
 	// User streams.
 	//
 	////////////////////////////////////////////////////////////

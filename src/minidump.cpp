@@ -69,6 +69,15 @@ Table Minidump::print_exception_call_stack() const
 	return ::print_call_stack(*_data, *_data->exception->thread);
 }
 
+Table Minidump::print_generic_information() const
+{
+	Table table({{""}, {""}});
+	table.reserve(_data->generic.size());
+	for (const auto& property : _data->generic)
+		table.push_back({property.first, property.second});
+	return table;
+}
+
 Table Minidump::print_handles() const
 {
 	Table table({{"#", Table::Alignment::Right}, {"HANDLE", Table::Alignment::Right}, {"TYPE"}, {"OBJECT"}});

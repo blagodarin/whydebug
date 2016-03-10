@@ -525,6 +525,32 @@ namespace
 			dump.is_32bit = dump.is_32bit && m.image_end <= End32;
 		}
 	}
+
+	void load_vm_counters(MinidumpData& dump, File& file, const minidump::Stream& stream)
+	{
+		minidump::VmCounters1 vm_counters;
+		CHECK(stream.location.size == sizeof vm_counters, "Bad ProcessVmCountersStream");
+		CHECK(file.seek(stream.location.offset), "Bad ProcessVmCountersStream offset");
+		CHECK(file.read(&vm_counters, std::min(stream.location.size, sizeof vm_counters)), "Couldn't read ProcessVmCountersStream");
+		CHECK_EQ(vm_counters.revision, minidump::VmCounters1::Revision, "Unsupported ProcessVmCountersStream revision");
+		check_extra_data(stream, sizeof vm_counters);
+
+		dump.generic.emplace_back("Page fault count:", std::to_string(vm_counters.page_fault_count));
+
+		dump.generic.emplace_back("Page file usage:", std::to_string(vm_counters.page_file_usage));
+		dump.generic.emplace_back("Peak page file usage:", std::to_string(vm_counters.peak_page_file_usage));
+
+		dump.generic.emplace_back("Working set size:", std::to_string(vm_counters.working_set_size));
+		dump.generic.emplace_back("Peak working set size:", std::to_string(vm_counters.peak_working_set_size));
+
+		dump.generic.emplace_back("Paged pool usage:", std::to_string(vm_counters.quota_paged_pool_usage));
+		dump.generic.emplace_back("Peak paged pool usage:", std::to_string(vm_counters.quota_peak_paged_pool_usage));
+
+		dump.generic.emplace_back("Non-paged pool usage:", std::to_string(vm_counters.quota_non_paged_pool_usage));
+		dump.generic.emplace_back("Peak non-paged pool usage:", std::to_string(vm_counters.quota_peak_non_paged_pool_usage));
+
+		dump.generic.emplace_back("Private usage:", std::to_string(vm_counters.private_usage));
+	}
 }
 
 std::unique_ptr<MinidumpData> MinidumpData::load(const std::string& file_name)
@@ -582,6 +608,9 @@ std::unique_ptr<MinidumpData> MinidumpData::load(const std::string& file_name)
 			break;
 		case Stream::Type::ThreadInfoList:
 			load_thread_info_list(*dump, file, stream);
+			break;
+		case Stream::Type::ProcessVmCounters:
+			load_vm_counters(*dump, file, stream);
 			break;
 		default:
 			if (stream.type == Stream::Type::Unused && stream.location.offset == 0 && stream.location.size == 0)

@@ -238,12 +238,14 @@ namespace
 		check_extra_data(stream, sizeof misc_info);
 
 		if (misc_info.flags & minidump::MiscInfo::ProcessId)
-			dump.process_id = misc_info.process_id;
+			dump.generic.emplace_back("Process ID:", std::to_string(misc_info.process_id));
+
 		if (misc_info.flags & minidump::MiscInfo::ProcessTimes)
 		{
-			dump.process_create_time = misc_info.process_create_time;
-			dump.process_user_time = misc_info.process_user_time;
-			dump.process_kernel_time = misc_info.process_kernel_time;
+			dump.generic.emplace_back("Process creation time:", ::time_t_to_string(misc_info.process_create_time));
+			dump.generic.emplace_back("Process uptime:", ::seconds_to_string(dump.timestamp - misc_info.process_create_time));
+			dump.generic.emplace_back("Process user time:", ::seconds_to_string(misc_info.process_user_time));
+			dump.generic.emplace_back("Process kernel time:", ::seconds_to_string(misc_info.process_kernel_time));
 		}
 
 		if (stream.location.size < sizeof(minidump::MiscInfo2))
@@ -251,9 +253,9 @@ namespace
 
 		if (misc_info.flags & minidump::MiscInfo2::ProcessorPowerInfo)
 		{
-			std::array<char, 32> buffer;
+			std::array<char, 64> buffer;
 			::snprintf(buffer.data(), buffer.size(), "%g GHz", misc_info.processor_current_mhz / 1000.0);
-			dump.cpu_frequency = buffer.data();
+			dump.generic.emplace_back("CPU frequency:", buffer.data());
 		}
 
 		if (stream.location.size < sizeof(minidump::MiscInfo3))
@@ -337,8 +339,6 @@ namespace
 
 	void load_system_info(MinidumpData& dump, File& file, const minidump::Stream& stream)
 	{
-		CHECK(!dump.system_info, "Duplicate system info");
-
 		minidump::SystemInfo system_info;
 		CHECK(stream.location.size >= sizeof system_info, "Bad system info stream");
 		CHECK(file.seek(stream.location.offset), "Bad system info offset");
@@ -347,66 +347,74 @@ namespace
 		CHECK(system_info.cpu_architecture != minidump::SystemInfo::Unknown, "Unknown CPU architecture");
 		CHECK(system_info.cpu_architecture == minidump::SystemInfo::X86, "Unsupported CPU architecture: " << system_info.cpu_architecture);
 
-		dump.system_info = std::make_unique<MinidumpData::SystemInfo>();
-		if (!::memcmp(system_info.cpu.x86.vendor_id, "GenuineIntel", sizeof system_info.cpu.x86.vendor_id))
 		{
-			static const std::tuple<uint16_t, uint8_t, std::string> names[] =
+			std::string cpu = "Unknown";
+			if (!::memcmp(system_info.cpu.x86.vendor_id, "GenuineIntel", sizeof system_info.cpu.x86.vendor_id))
 			{
-				std::make_tuple( 6, 26, "Nehalem"     ), // Bloomfield and Nehalem-EP.
-				std::make_tuple( 6, 30, "Nehalem"     ), // Clarksfield, Lynnfield and Jasper Forest.
-				std::make_tuple( 6, 37, "Westmere"    ), // Arrandale and Clarksdale.
-				std::make_tuple( 6, 42, "SandyBridge" ), // SandyBridge.
-				std::make_tuple( 6, 44, "Westmere"    ), // Gulftown and Westmere-EP.
-				std::make_tuple( 6, 45, "SandyBridge" ), // SandyBridge-E, SandyBridge-EN and SandyBridge-EP.
-				std::make_tuple( 6, 46, "Nehalem"     ), // Nehalem-EX.
-				std::make_tuple( 6, 47, "Westmere"    ), // Westmere-EX.
-				std::make_tuple( 6, 58, "IvyBridge"   ), // IvyBridge.
-			};
+				static const std::tuple<uint16_t, uint8_t, std::string> names[] =
+				{
+					std::make_tuple( 6, 26, "Nehalem"     ), // Bloomfield and Nehalem-EP.
+					std::make_tuple( 6, 30, "Nehalem"     ), // Clarksfield, Lynnfield and Jasper Forest.
+					std::make_tuple( 6, 37, "Westmere"    ), // Arrandale and Clarksdale.
+					std::make_tuple( 6, 42, "SandyBridge" ), // SandyBridge.
+					std::make_tuple( 6, 44, "Westmere"    ), // Gulftown and Westmere-EP.
+					std::make_tuple( 6, 45, "SandyBridge" ), // SandyBridge-E, SandyBridge-EN and SandyBridge-EP.
+					std::make_tuple( 6, 46, "Nehalem"     ), // Nehalem-EX.
+					std::make_tuple( 6, 47, "Westmere"    ), // Westmere-EX.
+					std::make_tuple( 6, 58, "IvyBridge"   ), // IvyBridge.
+				};
 
-			dump.system_info->cpu_description = "Intel";
-			const auto i = std::find_if(std::begin(names), std::end(names), [&system_info](const auto& entry)
-				{ return std::get<0>(entry) == system_info.cpu_family && std::get<1>(entry) == system_info.cpu_model; });
-			if (i != std::end(names))
-				dump.system_info->cpu_description += ' ' + std::get<2>(*i);
+				cpu = "Intel";
+				const auto i = std::find_if(std::begin(names), std::end(names), [&system_info](const auto& entry)
+					{ return std::get<0>(entry) == system_info.cpu_family && std::get<1>(entry) == system_info.cpu_model; });
+				if (i != std::end(names))
+					cpu += ' ' + std::get<2>(*i);
+			}
+			else if (!::memcmp(system_info.cpu.x86.vendor_id, "AuthenticAMD", sizeof system_info.cpu.x86.vendor_id))
+				cpu = "AMD";
+			cpu += " (family " + std::to_string(system_info.cpu_family)
+				+ ", model " + std::to_string(system_info.cpu_model)
+				+ ", stepping " + std::to_string(system_info.cpu_stepping) + ')';
+			dump.generic.emplace_back("CPU:", std::move(cpu));
 		}
-		else if (!::memcmp(system_info.cpu.x86.vendor_id, "AuthenticAMD", sizeof system_info.cpu.x86.vendor_id))
-			dump.system_info->cpu_description = "AMD";
-		else
-			dump.system_info->cpu_description = "Unknown";
-		dump.system_info->cpu_description += " (family " + std::to_string(system_info.cpu_family)
-			+ ", model " + std::to_string(system_info.cpu_model)
-			+ ", stepping " + std::to_string(system_info.cpu_stepping) + ')';
-		dump.system_info->cpu_cores = system_info.cpu_cores;
-		if (system_info.platform_id == minidump::SystemInfo::WindowsNt)
-		{
-			static const std::tuple<uint32_t, uint32_t, std::string, std::string> names[] =
-			{
-				std::make_tuple(  5, 0, "Windows 2000",  "Windows 2000"           ),
-				std::make_tuple(  5, 1, "Windows XP",    "Windows XP"             ),
-				std::make_tuple(  5, 2, "Windows XP",    "Windows Server 2003"    ), // 64-bit XP and both 2003 and 2003 R2.
-				std::make_tuple(  6, 0, "Windows Vista", "Windows Server 2008"    ),
-				std::make_tuple(  6, 1, "Windows 7",     "Windows Server 2008 R2" ),
-				std::make_tuple(  6, 2, "Windows 8",     "Windows Server 2012"    ),
-				std::make_tuple(  6, 3, "Windows 8.1",   "Windows Server 2012 R2" ),
-				std::make_tuple( 10, 0, "Windows 10",    "Windows Server 2016"    ),
-			};
 
-			const auto i = std::find_if(std::begin(names), std::end(names), [&system_info](const auto& entry)
-				{ return std::get<0>(entry) == system_info.major_version && std::get<1>(entry) == system_info.minor_version; });
-			if (i != std::end(names))
+		if (system_info.cpu_cores > 0)
+			dump.generic.emplace_back("CPU cores:", std::to_string(system_info.cpu_cores));
+
+		{
+			std::string os = "Unknown";
+			if (system_info.platform_id == minidump::SystemInfo::WindowsNt)
 			{
-				dump.system_info->os_name = (system_info.product_type == minidump::SystemInfo::Server) ? std::get<3>(*i) : std::get<2>(*i);
-				try
+				static const std::tuple<uint32_t, uint32_t, std::string, std::string> names[] =
 				{
-					const auto& service_pack = ::to_ascii(::read_string(file, system_info.service_pack_name_offset));
-					if (!service_pack.empty())
-						dump.system_info->os_name += " (" + service_pack + ')';
-				}
-				catch (const BadCheck& e)
+					std::make_tuple(  5, 0, "Windows 2000",  "Windows 2000"           ),
+					std::make_tuple(  5, 1, "Windows XP",    "Windows XP"             ),
+					std::make_tuple(  5, 2, "Windows XP",    "Windows Server 2003"    ), // 64-bit XP and both 2003 and 2003 R2.
+					std::make_tuple(  6, 0, "Windows Vista", "Windows Server 2008"    ),
+					std::make_tuple(  6, 1, "Windows 7",     "Windows Server 2008 R2" ),
+					std::make_tuple(  6, 2, "Windows 8",     "Windows Server 2012"    ),
+					std::make_tuple(  6, 3, "Windows 8.1",   "Windows Server 2012 R2" ),
+					std::make_tuple( 10, 0, "Windows 10",    "Windows Server 2016"    ),
+				};
+
+				const auto i = std::find_if(std::begin(names), std::end(names), [&system_info](const auto& entry)
+					{ return std::get<0>(entry) == system_info.major_version && std::get<1>(entry) == system_info.minor_version; });
+				if (i != std::end(names))
 				{
-					std::cerr << "ERROR: Couldn't read OS service pack: " << e.what() << std::endl;
+					os = (system_info.product_type == minidump::SystemInfo::Server) ? std::get<3>(*i) : std::get<2>(*i);
+					try
+					{
+						const auto& service_pack = ::to_ascii(::read_string(file, system_info.service_pack_name_offset));
+						if (!service_pack.empty())
+							os += " (" + service_pack + ')';
+					}
+					catch (const BadCheck& e)
+					{
+						std::cerr << "ERROR: Couldn't read OS service pack: " << e.what() << std::endl;
+					}
 				}
 			}
+			dump.generic.emplace_back("OS:", std::move(os));
 		}
 	}
 
@@ -565,6 +573,7 @@ std::unique_ptr<MinidumpData> MinidumpData::load(const std::string& file_name)
 	CHECK_EQ(header.signature, minidump::Header::Signature, "Header signature mismatch");
 	CHECK_EQ(header.version, minidump::Header::Version, "Header version mismatch");
 
+	dump->generic.emplace_back("Timestamp:", ::time_t_to_string(header.timestamp));
 	dump->timestamp = header.timestamp;
 
 	std::vector<minidump::Stream> streams(header.stream_count);

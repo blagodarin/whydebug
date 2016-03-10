@@ -63,13 +63,6 @@ Processor::Processor(std::unique_ptr<Minidump>&& dump)
 				_table = _dump->print_modules();
 			}
 		},
-		{ { "s" }, {},
-			"Build dump summary.",
-			[this](const std::vector<std::string>&)
-			{
-				_table = _dump->print_summary();
-			}
-		},
 		{ { "t" }, { "INDEX" },
 			"Build the stack of thread INDEX.",
 			[this](const std::vector<std::string>& args)

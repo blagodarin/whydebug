@@ -55,13 +55,6 @@ public:
 		Thread*  thread = nullptr;
 	};
 
-	struct SystemInfo
-	{
-		std::string cpu_description;
-		uint8_t     cpu_cores = 0;
-		std::string os_name;
-	};
-
 	struct MemoryInfo
 	{
 		enum class Usage
@@ -106,17 +99,11 @@ public:
 	};
 
 	time_t timestamp = 0;
-	uint32_t process_id = 0;
-	time_t process_create_time = 0;
-	uint32_t process_user_time = 0;
-	uint32_t process_kernel_time = 0;
-	std::string cpu_frequency;
 	std::vector<Module> modules;
 	std::vector<Thread> threads;
 	MemoryUsage memory_usage;
 	bool is_32bit = true;
 	std::unique_ptr<Exception> exception;
-	std::unique_ptr<SystemInfo> system_info;
 	std::map<uint64_t, MemoryInfo> memory;
 	std::map<uint64_t, MemoryRegion> memory_regions;
 	std::vector<UnloadedModule> unloaded_modules;

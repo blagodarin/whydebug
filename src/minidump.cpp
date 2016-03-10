@@ -173,32 +173,6 @@ Table Minidump::print_modules() const
 	return table;
 }
 
-Table Minidump::print_summary() const
-{
-	Table table({{""}, {""}});
-	table.push_back({"Timestamp:", ::time_t_to_string(_data->timestamp)});
-	if (_data->process_id)
-		table.push_back({"Process ID:", std::to_string(_data->process_id)});
-	if (_data->process_create_time)
-	{
-		table.push_back({"Process creation time:", ::time_t_to_string(_data->process_create_time)});
-		table.push_back({"Calculated uptime:", ::seconds_to_string(_data->timestamp - _data->process_create_time)});
-		table.push_back({"Process user time:", ::seconds_to_string(_data->process_user_time)});
-		table.push_back({"Process kernel time:", ::seconds_to_string(_data->process_kernel_time)});
-	}
-	if (!_data->cpu_frequency.empty())
-		table.push_back({"CPU frequency:", _data->cpu_frequency});
-	if (_data->system_info)
-	{
-		table.push_back({"CPU:", _data->system_info->cpu_description});
-		if (_data->system_info->cpu_cores > 0)
-			table.push_back({"CPU cores:", std::to_string(_data->system_info->cpu_cores)});
-		if (!_data->system_info->os_name.empty())
-			table.push_back({"OS name:", _data->system_info->os_name});
-	}
-	return table;
-}
-
 Table Minidump::print_thread_call_stack(unsigned long thread_index) const
 {
 	if (thread_index == 0 || thread_index > _data->threads.size())

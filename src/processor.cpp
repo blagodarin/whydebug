@@ -1,28 +1,9 @@
 #include "processor.h"
 #include "minidump.h"
+#include "parser.h"
 #include "utils.h"
 #include <chrono>
 #include <iostream>
-
-namespace
-{
-	std::vector<std::string> split(const std::string& string, char separator)
-	{
-		std::vector<std::string> result;
-		for (std::string::size_type begin = 0;;)
-		{
-			auto end = string.find_first_of(separator, begin);
-			if (end == std::string::npos)
-			{
-				result.emplace_back(string.substr(begin));
-				break;
-			}
-			result.emplace_back(string.substr(begin, end - begin));
-			begin = end + 1;
-		}
-		return result;
-	}
-}
 
 Processor::Processor(std::unique_ptr<Minidump>&& dump)
 	: _dump(std::move(dump))
@@ -249,52 +230,29 @@ Processor::Processor(std::unique_ptr<Minidump>&& dump)
 	}
 }
 
+Processor::~Processor() = default;
+
 bool Processor::process(const std::string& commands)
 {
-	bool print_table = true;
-
-	std::vector<std::pair<const Command*, std::vector<std::string>>> parsed_commands;
-	for (const auto& command_string : ::split(commands, '|'))
-	{
-		std::string name;
-		std::vector<std::string> arguments;
-		auto end = std::string::npos;
-		do
-		{
-			const auto begin = command_string.find_first_not_of(' ', end + 1);
-			if (begin == std::string::npos)
-				break;
-			end = command_string.find_first_of(' ', begin + 1);
-			auto&& part = command_string.substr(begin, end != std::string::npos ? end - begin : end);
-			if (name.empty())
-				name = std::move(part);
-			else
-				arguments.emplace_back(std::move(part));
-		} while (end != std::string::npos);
-		const auto command = _command_index.find(name);
-		if (command == _command_index.end())
-		{
-			std::cerr << "ERROR: Unknown command '" << name << "'" << std::endl;
-			return false;
-		}
-		if (arguments.size() != command->second->arguments.size())
-		{
-			std::cerr << "ERROR: Bad number of arguments for command '" << name << "'" << std::endl;
-			return false;
-		}
-		parsed_commands.emplace_back(command->second, std::move(arguments));
-		print_table = name[0] != '?';
-	}
-
 	try
 	{
-		for (const auto& parsed_command : parsed_commands)
+		bool print_table = true;
+		for (const auto& parsed_command : parser::parse(_command_index, commands))
 		{
 			const auto start_time = std::chrono::steady_clock::now();
 			parsed_command.first->handler(parsed_command.second);
 			const auto end_time = std::chrono::steady_clock::now();
 			_last_command_time = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
+			print_table = parsed_command.first->names.primary[0] != '?';
 		}
+		if (print_table)
+		{
+			const auto start_time = std::chrono::steady_clock::now();
+			_table.print(std::cout);
+			const auto end_time = std::chrono::steady_clock::now();
+			_last_print_time = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
+		}
+		return true;
 	}
 	catch (const std::exception& e) // TODO: Should we catch std::logic_error here?
 	{
@@ -302,14 +260,4 @@ bool Processor::process(const std::string& commands)
 		std::cerr << "ERROR: " << e.what() << std::endl;
 		return false;
 	}
-
-	if (print_table)
-	{
-		const auto start_time = std::chrono::steady_clock::now();
-		_table.print(std::cout);
-		const auto end_time = std::chrono::steady_clock::now();
-		_last_print_time = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
-	}
-
-	return true;
 }

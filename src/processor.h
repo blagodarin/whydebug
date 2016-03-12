@@ -6,11 +6,17 @@
 
 class Minidump;
 
+namespace parser
+{
+	class Command;
+}
+
 class Processor
 {
 public:
 
 	Processor(std::unique_ptr<Minidump>&&);
+	~Processor();
 
 	bool process(const std::string& commands);
 
@@ -30,8 +36,8 @@ private:
 
 	const std::unique_ptr<Minidump> _dump;
 	Table _table;
-	const std::vector<Command> _commands;
-	std::unordered_map<std::string, const Command*> _command_index;
+	const std::vector<parser::Command> _commands;
+	std::unordered_map<std::string, const parser::Command*> _command_index;
 	int _last_command_time = 0;
 	int _last_print_time = 0;
 };

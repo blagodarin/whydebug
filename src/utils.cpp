@@ -68,18 +68,28 @@ std::string to_hex_min(uint64_t value)
 
 std::string to_human_readable(uint64_t bytes)
 {
-	if (bytes < 1024)
-		return std::to_string(bytes) + " B";
-	bytes /= 1024;
-	if (bytes < 1024)
-		return std::to_string(bytes) + " K";
-	bytes /= 1024;
-	if (bytes < 1024)
-		return std::to_string(bytes) + " M";
-	bytes /= 1024;
-	if (bytes < 1024)
-		return std::to_string(bytes) + " G";
-	return std::to_string(bytes) + " T";
+	double result = bytes;
+	if (result < 1024)
+		return ::to_string(result) + " B";
+	result /= 1024;
+	if (result < 1024)
+		return ::to_string(result) + " KiB";
+	result /= 1024;
+	if (result < 1024)
+		return ::to_string(result) + " MiB";
+	result /= 1024;
+	if (result < 1024)
+		return ::to_string(result) + " GiB";
+	return ::to_string(result) + " TiB";
+}
+
+std::string to_string(double value)
+{
+	std::array<char, 64> buffer;
+	const auto n = ::snprintf(buffer.data(), buffer.size(), "%.1f", value);
+	if (n > 2 && buffer[n - 1] == '0' && buffer[n - 2] == '.')
+		buffer[n - 2] = '\0';
+	return buffer.data();
 }
 
 unsigned long to_ulong(const std::string& value)

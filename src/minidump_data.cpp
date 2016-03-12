@@ -18,7 +18,7 @@ namespace
 		return { static_cast<T*>(::calloc(size, 1)), ::free };
 	}
 
-	std::string to_string(minidump::Stream::Type type)
+	std::string stream_name(minidump::Stream::Type type)
 	{
 		using namespace minidump;
 		switch (type)
@@ -54,7 +54,7 @@ namespace
 	{
 		if (stream.location.size > expected)
 		{
-			std::cerr << "WARNING: Extra data in " << ::to_string(stream.type) << " ("
+			std::cerr << "WARNING: Extra data in " << ::stream_name(stream.type) << " ("
 				<< stream.location.size - expected << " bytes at 0x" << ::to_hex(stream.location.offset + expected) << ")" << std::endl;
 		}
 	}
@@ -252,11 +252,7 @@ namespace
 			return;
 
 		if (misc_info.flags & minidump::MiscInfo2::ProcessorPowerInfo)
-		{
-			std::array<char, 64> buffer;
-			::snprintf(buffer.data(), buffer.size(), "%g GHz", misc_info.processor_current_mhz / 1000.0);
-			dump.generic.emplace_back("CPU frequency:", buffer.data());
-		}
+			dump.generic.emplace_back("CPU frequency:", ::to_string(misc_info.processor_current_mhz / 1000.0) + " GHz");
 
 		if (stream.location.size < sizeof(minidump::MiscInfo3))
 			return;
@@ -418,6 +414,26 @@ namespace
 		}
 	}
 
+	void load_system_memory_info(MinidumpData& dump, File& file, const minidump::Stream& stream)
+	{
+		minidump::SystemMemoryInfo1 system_memory_info;
+		CHECK(stream.location.size == sizeof system_memory_info, "Bad SystemMemoryInfoStream");
+		CHECK(file.seek(stream.location.offset), "Bad SystemMemoryInfoStream offset");
+		CHECK(file.read(system_memory_info), "Couldn't read SystemMemoryInfoStream");
+		CHECK_EQ(system_memory_info.revision, minidump::SystemMemoryInfo1::Revision, "Unsupported SystemMemoryInfoStream revision");
+
+		dump.generic.emplace_back("Memory page size:", ::to_human_readable(system_memory_info.basic_info.PageSize));
+		dump.generic.emplace_back("System allocation granularity:", ::to_human_readable(system_memory_info.basic_info.AllocationGranularity));
+		dump.generic.emplace_back("Total physical memory:", ::to_human_readable(uint64_t{system_memory_info.basic_info.NumberOfPhysicalPages} * system_memory_info.basic_info.PageSize));
+		dump.generic.emplace_back("Process virtual memory range:",
+			(system_memory_info.basic_info.MaximumUserModeAddress >= End32
+				? "0x" + ::to_hex(system_memory_info.basic_info.MinimumUserModeAddress)
+					+ " - 0x" + ::to_hex(system_memory_info.basic_info.MaximumUserModeAddress)
+				: "0x" + ::to_hex(static_cast<uint32_t>(system_memory_info.basic_info.MinimumUserModeAddress))
+					+ " - 0x" + ::to_hex(static_cast<uint32_t>(system_memory_info.basic_info.MaximumUserModeAddress)))
+			+ " (" + ::to_human_readable(system_memory_info.basic_info.MaximumUserModeAddress + 1 - system_memory_info.basic_info.MinimumUserModeAddress) + ")");
+	}
+
 	void load_thread_list(MinidumpData& dump, File& file, const minidump::Stream& stream)
 	{
 		CHECK(dump.threads.empty(), "Duplicate thread list");
@@ -539,25 +555,24 @@ namespace
 		minidump::VmCounters1 vm_counters;
 		CHECK(stream.location.size == sizeof vm_counters, "Bad ProcessVmCountersStream");
 		CHECK(file.seek(stream.location.offset), "Bad ProcessVmCountersStream offset");
-		CHECK(file.read(&vm_counters, std::min(stream.location.size, sizeof vm_counters)), "Couldn't read ProcessVmCountersStream");
+		CHECK(file.read(vm_counters), "Couldn't read ProcessVmCountersStream");
 		CHECK_EQ(vm_counters.revision, minidump::VmCounters1::Revision, "Unsupported ProcessVmCountersStream revision");
-		check_extra_data(stream, sizeof vm_counters);
 
 		dump.generic.emplace_back("Page fault count:", std::to_string(vm_counters.page_fault_count));
 
-		dump.generic.emplace_back("Page file usage:", std::to_string(vm_counters.page_file_usage));
-		dump.generic.emplace_back("Peak page file usage:", std::to_string(vm_counters.peak_page_file_usage));
+		dump.generic.emplace_back("Page file usage:", ::to_human_readable(vm_counters.page_file_usage));
+		dump.generic.emplace_back("Peak page file usage:", ::to_human_readable(vm_counters.peak_page_file_usage));
 
-		dump.generic.emplace_back("Working set size:", std::to_string(vm_counters.working_set_size));
-		dump.generic.emplace_back("Peak working set size:", std::to_string(vm_counters.peak_working_set_size));
+		dump.generic.emplace_back("Working set size:", ::to_human_readable(vm_counters.working_set_size));
+		dump.generic.emplace_back("Peak working set size:", ::to_human_readable(vm_counters.peak_working_set_size));
 
-		dump.generic.emplace_back("Paged pool usage:", std::to_string(vm_counters.quota_paged_pool_usage));
-		dump.generic.emplace_back("Peak paged pool usage:", std::to_string(vm_counters.quota_peak_paged_pool_usage));
+		dump.generic.emplace_back("Paged pool usage:", ::to_human_readable(vm_counters.paged_pool_usage));
+		dump.generic.emplace_back("Peak paged pool usage:", ::to_human_readable(vm_counters.peak_paged_pool_usage));
 
-		dump.generic.emplace_back("Non-paged pool usage:", std::to_string(vm_counters.quota_non_paged_pool_usage));
-		dump.generic.emplace_back("Peak non-paged pool usage:", std::to_string(vm_counters.quota_peak_non_paged_pool_usage));
+		dump.generic.emplace_back("Non-paged pool usage:", ::to_human_readable(vm_counters.non_paged_pool_usage));
+		dump.generic.emplace_back("Peak non-paged pool usage:", ::to_human_readable(vm_counters.peak_non_paged_pool_usage));
 
-		dump.generic.emplace_back("Private usage:", std::to_string(vm_counters.private_usage));
+		dump.generic.emplace_back("Private usage:", ::to_human_readable(vm_counters.private_usage));
 	}
 }
 
@@ -617,6 +632,9 @@ std::unique_ptr<MinidumpData> MinidumpData::load(const std::string& file_name)
 			break;
 		case Stream::Type::ThreadInfoList:
 			load_thread_info_list(*dump, file, stream);
+			break;
+		case Stream::Type::SystemMemoryInfo:
+			load_system_memory_info(*dump, file, stream);
 			break;
 		case Stream::Type::ProcessVmCounters:
 			load_vm_counters(*dump, file, stream);

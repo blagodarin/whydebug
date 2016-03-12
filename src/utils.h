@@ -37,6 +37,9 @@ std::string to_hex_min(uint64_t);
 std::string to_human_readable(uint64_t);
 
 //
+std::string to_string(double);
+
+//
 unsigned long to_ulong(const std::string&);
 
 //

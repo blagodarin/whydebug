@@ -682,26 +682,173 @@ namespace minidump
 
 	////////////////////////////////////////////////////////////
 	//
+	// Global system memory/performance information (SystemMemoryInfoStream).
+	//
+	////////////////////////////////////////////////////////////
+
+	// (MINIDUMP_SYSTEM_MEMORY_INFO_1).
+	struct SystemMemoryInfo1
+	{
+		// (MINIDUMP_SYSTEM_BASIC_INFORMATION).
+		struct BasicInfo
+		{
+			uint32_t TimerResolution;
+			uint32_t PageSize;
+			uint32_t NumberOfPhysicalPages;
+			uint32_t LowestPhysicalPageNumber;
+			uint32_t HighestPhysicalPageNumber;
+			uint32_t AllocationGranularity;
+			uint64_t MinimumUserModeAddress;
+			uint64_t MaximumUserModeAddress;
+			uint64_t ActiveProcessorsAffinityMask;
+			uint32_t NumberOfProcessors;
+		};
+
+		// (MINIDUMP_SYSTEM_FILECACHE_INFORMATION).
+		struct FileCacheInfo
+		{
+			uint64_t CurrentSize;
+			uint64_t PeakSize;
+			uint32_t PageFaultCount;
+			uint64_t MinimumWorkingSet;
+			uint64_t MaximumWorkingSet;
+			uint64_t CurrentSizeIncludingTransitionInPages;
+			uint64_t PeakSizeIncludingTransitionInPages;
+			uint32_t TransitionRePurposeCount;
+			uint32_t Flags;
+		};
+
+		// (MINIDUMP_SYSTEM_BASIC_PERFORMANCE_INFORMATION).
+		struct BasicPerfInfo
+		{
+			uint64_t AvailablePages;
+			uint64_t CommittedPages;
+			uint64_t CommitLimit;
+			uint64_t PeakCommitment;
+		};
+
+		// (MINIDUMP_SYSTEM_PERFORMANCE_INFORMATION).
+		struct PerfInfo
+		{
+			uint64_t IdleProcessTime;
+			uint64_t IoReadTransferCount;
+			uint64_t IoWriteTransferCount;
+			uint64_t IoOtherTransferCount;
+			uint32_t IoReadOperationCount;
+			uint32_t IoWriteOperationCount;
+			uint32_t IoOtherOperationCount;
+			uint32_t AvailablePages;
+			uint32_t CommittedPages;
+			uint32_t CommitLimit;
+			uint32_t PeakCommitment;
+			uint32_t PageFaultCount;
+			uint32_t CopyOnWriteCount;
+			uint32_t TransitionCount;
+			uint32_t CacheTransitionCount;
+			uint32_t DemandZeroCount;
+			uint32_t PageReadCount;
+			uint32_t PageReadIoCount;
+			uint32_t CacheReadCount;
+			uint32_t CacheIoCount;
+			uint32_t DirtyPagesWriteCount;
+			uint32_t DirtyWriteIoCount;
+			uint32_t MappedPagesWriteCount;
+			uint32_t MappedWriteIoCount;
+			uint32_t PagedPoolPages;
+			uint32_t NonPagedPoolPages;
+			uint32_t PagedPoolAllocs;
+			uint32_t PagedPoolFrees;
+			uint32_t NonPagedPoolAllocs;
+			uint32_t NonPagedPoolFrees;
+			uint32_t FreeSystemPtes;
+			uint32_t ResidentSystemCodePage;
+			uint32_t TotalSystemDriverPages;
+			uint32_t TotalSystemCodePages;
+			uint32_t NonPagedPoolLookasideHits;
+			uint32_t PagedPoolLookasideHits;
+			uint32_t AvailablePagedPoolPages;
+			uint32_t ResidentSystemCachePage;
+			uint32_t ResidentPagedPoolPage;
+			uint32_t ResidentSystemDriverPage;
+			uint32_t CcFastReadNoWait;
+			uint32_t CcFastReadWait;
+			uint32_t CcFastReadResourceMiss;
+			uint32_t CcFastReadNotPossible;
+			uint32_t CcFastMdlReadNoWait;
+			uint32_t CcFastMdlReadWait;
+			uint32_t CcFastMdlReadResourceMiss;
+			uint32_t CcFastMdlReadNotPossible;
+			uint32_t CcMapDataNoWait;
+			uint32_t CcMapDataWait;
+			uint32_t CcMapDataNoWaitMiss;
+			uint32_t CcMapDataWaitMiss;
+			uint32_t CcPinMappedDataCount;
+			uint32_t CcPinReadNoWait;
+			uint32_t CcPinReadWait;
+			uint32_t CcPinReadNoWaitMiss;
+			uint32_t CcPinReadWaitMiss;
+			uint32_t CcCopyReadNoWait;
+			uint32_t CcCopyReadWait;
+			uint32_t CcCopyReadNoWaitMiss;
+			uint32_t CcCopyReadWaitMiss;
+			uint32_t CcMdlReadNoWait;
+			uint32_t CcMdlReadWait;
+			uint32_t CcMdlReadNoWaitMiss;
+			uint32_t CcMdlReadWaitMiss;
+			uint32_t CcReadAheadIos;
+			uint32_t CcLazyWriteIos;
+			uint32_t CcLazyWritePages;
+			uint32_t CcDataFlushes;
+			uint32_t CcDataPages;
+			uint32_t ContextSwitches;
+			uint32_t FirstLevelTbFills;
+			uint32_t SecondLevelTbFills;
+			uint32_t SystemCalls;
+			uint64_t CcTotalDirtyPages;
+			uint64_t CcDirtyPageThreshold;
+			int64_t  ResidentAvailablePages;
+			uint64_t SharedCommittedPages;
+		};
+
+		uint16_t      revision;        //
+		uint16_t      flags;           //
+		BasicInfo     basic_info;      //
+		FileCacheInfo file_cache_info; //
+		BasicPerfInfo basic_perf_info; //
+		PerfInfo      perf_info;       //
+
+		static constexpr uint16_t Revision = 1;
+
+		enum : uint16_t
+		{
+			FileCache_TransitionRePurposeCount_Flags         = 0x0001, // (MINIDUMP_SYSMEMINFO1_FILECACHE_TRANSITIONREPURPOSECOUNT_FLAGS).
+			BasicPerf                                        = 0x0002, // (MINIDUMP_SYSMEMINFO1_BASICPERF).
+			Perf_CcTotalDirtyPagesCc_DirtyPagesThreshold     = 0x0004, // (MINIDUMP_SYSMEMINFO1_PERF_CCTOTALDIRTYPAGES_CCDIRTYPAGETHRESHOLD).
+			Perf_ResidentAvailablePages_SharedCommittedPages = 0x0008, // (MINIDUMP_SYSMEMINFO1_PERF_RESIDENTAVAILABLEPAGES_SHAREDCOMMITPAGES).
+		};
+	};
+
+	////////////////////////////////////////////////////////////
+	//
 	// Process VM counters (ProcessVmCountersStream).
 	//
 	////////////////////////////////////////////////////////////
 
-	// (MINIDUMP_PROCESS_VM_COUNTERS_1).
-	// See also PROCESS_MEMORY_COUNTERS.
+	// (MINIDUMP_PROCESS_VM_COUNTERS_1, see also PROCESS_MEMORY_COUNTERS).
 	struct VmCounters1
 	{
-		uint16_t revision;                        //
-		uint16_t flags;                           // Zero in revision 1.
-		uint32_t page_fault_count;                //
-		uint64_t peak_working_set_size;           //
-		uint64_t working_set_size;                //
-		uint64_t quota_peak_paged_pool_usage;     //
-		uint64_t quota_paged_pool_usage;          //
-		uint64_t quota_peak_non_paged_pool_usage; //
-		uint64_t quota_non_paged_pool_usage;      //
-		uint64_t page_file_usage;                 //
-		uint64_t peak_page_file_usage;            //
-		uint64_t private_usage;                   //
+		uint16_t revision;                  //
+		uint16_t flags;                     // Zero in revision 1.
+		uint32_t page_fault_count;          //
+		uint64_t peak_working_set_size;     //
+		uint64_t working_set_size;          //
+		uint64_t peak_paged_pool_usage;     //
+		uint64_t paged_pool_usage;          //
+		uint64_t peak_non_paged_pool_usage; //
+		uint64_t non_paged_pool_usage;      //
+		uint64_t page_file_usage;           //
+		uint64_t peak_page_file_usage;      //
+		uint64_t private_usage;             //
 
 		static constexpr uint16_t Revision = 1;
 	};

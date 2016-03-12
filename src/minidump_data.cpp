@@ -293,8 +293,8 @@ namespace
 		{
 			if (!module.version_info.signature && !module.version_info.version)
 				continue; // No version information is present.
-			CHECK_EQ(module.version_info.signature, minidump::VersionInfo::Signature, "Bad module version signature");
-			CHECK_EQ(module.version_info.version, minidump::VersionInfo::Version, "Bad module version version");
+			CHECK_EQ(module.version_info.signature, minidump::Module::VersionInfo::Signature, "Bad module version signature");
+			CHECK_EQ(module.version_info.version, minidump::Module::VersionInfo::Version, "Bad module version version");
 		}
 
 		for (const auto& module : modules)
@@ -457,11 +457,11 @@ namespace
 
 			try
 			{
-				minidump::ContextX86 context;
+				minidump::ThreadContextX86 context;
 				CHECK_EQ(thread.context.size, sizeof context, "Bad thread context size");
 				CHECK(file.seek(thread.context.offset), "Bad thread " << index << " context offset");
 				CHECK(file.read(context), "Couldn't read thread " << index << " context");
-				CHECK(::has_flags(context.flags, minidump::ContextX86::I386 | minidump::ContextX86::Control), "Bad thread context");
+				CHECK(::has_flags(context.flags, minidump::ThreadContextX86::I386 | minidump::ThreadContextX86::Control), "Bad thread context");
 				t.context.x86.eip = context.eip;
 				t.context.x86.esp = context.esp;
 				t.context.x86.ebp = context.ebp;

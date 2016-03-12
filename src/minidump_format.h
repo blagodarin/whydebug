@@ -114,17 +114,17 @@ namespace minidump
 	};
 
 	// Thread context for x86 (CONTEXT).
-	struct ContextX86
+	struct ThreadContextX86
 	{
 		enum : uint32_t
 		{
-			I386              = 0x00010000, // CONTEXT_I386
-			Control           = 0x00000001, // CONTEXT_CONTROL
-			Integer           = 0x00000002, // CONTEXT_INTEGER
-			Segments          = 0x00000004, // CONTEXT_SEGMENTS
-			FloatingPoint     = 0x00000008, // CONTEXT_FLOATING_POINT
-			DebugRegisters    = 0x00000010, // CONTEXT_DEBUG_REGISTERS
-			ExtendedRegisters = 0x00000020, // CONTEXT_EXTENDED_REGISTERS
+			I386              = 0x00010000, // (CONTEXT_I386).
+			Control           = 0x00000001, // (CONTEXT_CONTROL).
+			Integer           = 0x00000002, // (CONTEXT_INTEGER).
+			Segments          = 0x00000004, // (CONTEXT_SEGMENTS).
+			FloatingPoint     = 0x00000008, // (CONTEXT_FLOATING_POINT).
+			DebugRegisters    = 0x00000010, // (CONTEXT_DEBUG_REGISTERS).
+			ExtendedRegisters = 0x00000020, // (CONTEXT_EXTENDED_REGISTERS).
 		} flags;
 
 		// CONTEXT_DEBUG_REGISTERS
@@ -181,35 +181,6 @@ namespace minidump
 	//
 	////////////////////////////////////////////////////////////
 
-	//
-	enum : uint32_t
-	{
-		VS_FF_DEBUG        = 0x00000001, //
-		VS_FF_PRERELEASE   = 0x00000002, //
-		VS_FF_PATCHED      = 0x00000004, //
-		VS_FF_PRIVATEBUILD = 0x00000008, //
-		VS_FF_INFOINFERRED = 0x00000010, //
-		VS_FF_SPECIALBUILD = 0x00000020, //
-	};
-
-	// File version information (VS_FIXEDFILEINFO).
-	struct VersionInfo
-	{
-		uint32_t signature;          //
-		uint32_t version;            // Of this structure.
-		uint16_t file_version[4];    // Minor version, major verion, minor revision, major revision.
-		uint16_t product_version[4]; // Same as above.
-		uint32_t file_flags_mask;    //
-		uint32_t file_flags;         // VS_FF_*.
-		uint32_t file_os;            //
-		uint32_t file_type;          //
-		uint32_t file_subtype;       //
-		uint32_t file_date[2];       //
-
-		static constexpr uint32_t Signature = 0xfeef04bd;
-		static constexpr uint32_t Version = 0x00010000;
-	};
-
 	// Module list header (MINIDUMP_MODULE_LIST).
 	struct ModuleListHeader
 	{
@@ -219,6 +190,24 @@ namespace minidump
 	// Module list entry (MINIDUMP_MODULE).
 	struct Module
 	{
+		// Module version information (VS_FIXEDFILEINFO).
+		struct VersionInfo
+		{
+			uint32_t signature;          //
+			uint32_t version;            // Of this structure.
+			uint16_t file_version[4];    // Minor version, major verion, minor revision, major revision.
+			uint16_t product_version[4]; // Same as above.
+			uint32_t file_flags_mask;    //
+			uint32_t file_flags;         //
+			uint32_t file_os;            //
+			uint32_t file_type;          //
+			uint32_t file_subtype;       //
+			uint32_t file_date[2];       //
+
+			static constexpr uint32_t Signature = 0xfeef04bd;
+			static constexpr uint32_t Version = 0x00010000;
+		};
+
 		uint64_t    image_base;   //
 		uint32_t    image_size;   //
 		uint32_t    check_sum;    //
@@ -238,8 +227,8 @@ namespace minidump
 		uint32_t pdb_age;      //
 		char     pdb_name[];   //
 
-		static constexpr uint32_t MinSize = 24;
 		static constexpr uint32_t Signature = 0x53445352; // "RSDS".
+		static constexpr uint32_t MinSize = 24;
 	};
 
 	////////////////////////////////////////////////////////////
@@ -426,33 +415,6 @@ namespace minidump
 
 	////////////////////////////////////////////////////////////
 	//
-	// Function table information (FunctionTableStream).
-	//
-	////////////////////////////////////////////////////////////
-
-	// (MINIDUMP_FUNCTION_TABLE_STREAM).
-	struct FunctionTableStream
-	{
-		uint32_t SizeOfHeader;           //
-		uint32_t SizeOfDescriptor;       //
-		uint32_t SizeOfNativeDescriptor; //
-		uint32_t SizeOfFunctionEntry;    //
-		uint32_t NumberOfDescriptors;    //
-		uint32_t SizeOfAlignPad;         //
-	};
-
-	// (MINIDUMP_FUNCTION_TABLE_DESCRIPTOR).
-	struct FunctionTableDescriptor
-	{
-		uint64_t MinimumAddress; //
-		uint64_t MaximumAddress; //
-		uint64_t BaseAddress;    //
-		uint32_t EntryCount;     //
-		uint32_t SizeOfAlignPad; //
-	};
-
-	////////////////////////////////////////////////////////////
-	//
 	// Module information for the unloaded modules (UnloadedModuleListStream).
 	//
 	////////////////////////////////////////////////////////////
@@ -513,47 +475,47 @@ namespace minidump
 		uint32_t processor_current_idle_state; //
 	};
 
-	// (SYSTEMTIME).
-	struct SystemTime
-	{
-		uint16_t year;         //
-		uint16_t month;        // 1 to 12.
-		uint16_t day_of_week;  // 0 to 6, 0 is Sunday.
-		uint16_t day;          // 1 to 31.
-		uint16_t hour;         // 0 to 23.
-		uint16_t minute;       // 0 to 59.
-		uint16_t second;       // 0 to 59.
-		uint16_t milliseconds; // 0 to 999.
-	};
-
-	// (TIME_ZONE_INFORMATION).
-	struct TimeZoneInformation
-	{
-		int32_t    bias;              //
-		char16_t   standard_name[32]; //
-		SystemTime standard_date;     //
-		int32_t    standard_bias;     //
-		char16_t   daylight_name[32]; //
-		SystemTime daylight_date;     //
-		int32_t    daylight_bias;     //
-	};
-
 	// (MINIDUMP_MISC_INFO_3).
 	struct MiscInfo3 : MiscInfo2
 	{
+		// (TIME_ZONE_INFORMATION).
+		struct TimeZoneInfo
+		{
+			// (SYSTEMTIME).
+			struct SystemTime
+			{
+				uint16_t year;         //
+				uint16_t month;        // 1 to 12.
+				uint16_t day_of_week;  // 0 to 6, 0 is Sunday.
+				uint16_t day;          // 1 to 31.
+				uint16_t hour;         // 0 to 23.
+				uint16_t minute;       // 0 to 59.
+				uint16_t second;       // 0 to 59.
+				uint16_t milliseconds; // 0 to 999.
+			};
+
+			int32_t    bias;              //
+			char16_t   standard_name[32]; //
+			SystemTime standard_date;     //
+			int32_t    standard_bias;     //
+			char16_t   daylight_name[32]; //
+			SystemTime daylight_date;     //
+			int32_t    daylight_bias;     //
+		};
+
 		enum : uint32_t
 		{
 			ProcessIntegrity    = 0x00000010, // (MINIDUMP_MISC3_PROCESS_INTEGRITY).
 			ProcessExecuteFlags = 0x00000020, // (MINIDUMP_MISC3_PROCESS_EXECUTE_FLAGS).
-			Timezone            = 0x00000040, // (MINIDUMP_MISC3_TIMEZONE).
+			TimeZone            = 0x00000040, // (MINIDUMP_MISC3_TIMEZONE).
 			ProtectedProcess    = 0x00000080, // (MINIDUMP_MISC3_PROTECTED_PROCESS).
 		};
 
-		uint32_t            process_integrity_level; //
-		uint32_t            process_execute_flags;   //
-		uint32_t            protected_process;       //
-		uint32_t            time_zone_id;            //
-		TimeZoneInformation time_zone;               //
+		uint32_t     process_integrity_level; //
+		uint32_t     process_execute_flags;   //
+		uint32_t     protected_process;       //
+		uint32_t     time_zone_id;            //
+		TimeZoneInfo time_zone;               //
 	};
 
 	// (MINIDUMP_MISC_INFO_4).
@@ -568,25 +530,25 @@ namespace minidump
 		uint16_t debug_build_string[40]; //
 	};
 
-	// (XSTATE_FEATURE).
-	struct XStateFeature
-	{
-		uint32_t offset;
-		uint32_t size;
-	};
-
-	// (XSTATE_CONFIG_FEATURE_MSC_INFO).
-	struct XStateInfo
-	{
-		uint32_t      size;             //
-		uint32_t      context_size;     //
-		uint64_t      enabled_features; //
-		XStateFeature features[64];     //
-	};
-
 	// (MINIDUMP_MISC_INFO_5).
 	struct MiscInfo5 : MiscInfo4
 	{
+		// (XSTATE_CONFIG_FEATURE_MSC_INFO).
+		struct XStateInfo
+		{
+			// (XSTATE_FEATURE).
+			struct Feature
+			{
+				uint32_t offset;
+				uint32_t size;
+			};
+
+			uint32_t size;             //
+			uint32_t context_size;     //
+			uint64_t enabled_features; //
+			Feature  features[64];     //
+		};
+
 		enum : uint32_t
 		{
 			ProcessCookie = 0x00000200, // (MINIDUMP_MISC5_PROCESS_COOKIE).
@@ -810,6 +772,14 @@ namespace minidump
 			uint64_t SharedCommittedPages;
 		};
 
+		enum : uint16_t
+		{
+			FileCache_TransitionRePurposeCount_Flags         = 0x0001, // (MINIDUMP_SYSMEMINFO1_FILECACHE_TRANSITIONREPURPOSECOUNT_FLAGS).
+			BasicPerf                                        = 0x0002, // (MINIDUMP_SYSMEMINFO1_BASICPERF).
+			Perf_CcTotalDirtyPagesCc_DirtyPagesThreshold     = 0x0004, // (MINIDUMP_SYSMEMINFO1_PERF_CCTOTALDIRTYPAGES_CCDIRTYPAGETHRESHOLD).
+			Perf_ResidentAvailablePages_SharedCommittedPages = 0x0008, // (MINIDUMP_SYSMEMINFO1_PERF_RESIDENTAVAILABLEPAGES_SHAREDCOMMITPAGES).
+		};
+
 		uint16_t      revision;        //
 		uint16_t      flags;           //
 		BasicInfo     basic_info;      //
@@ -818,14 +788,6 @@ namespace minidump
 		PerfInfo      perf_info;       //
 
 		static constexpr uint16_t Revision = 1;
-
-		enum : uint16_t
-		{
-			FileCache_TransitionRePurposeCount_Flags         = 0x0001, // (MINIDUMP_SYSMEMINFO1_FILECACHE_TRANSITIONREPURPOSECOUNT_FLAGS).
-			BasicPerf                                        = 0x0002, // (MINIDUMP_SYSMEMINFO1_BASICPERF).
-			Perf_CcTotalDirtyPagesCc_DirtyPagesThreshold     = 0x0004, // (MINIDUMP_SYSMEMINFO1_PERF_CCTOTALDIRTYPAGES_CCDIRTYPAGETHRESHOLD).
-			Perf_ResidentAvailablePages_SharedCommittedPages = 0x0008, // (MINIDUMP_SYSMEMINFO1_PERF_RESIDENTAVAILABLEPAGES_SHAREDCOMMITPAGES).
-		};
 	};
 
 	////////////////////////////////////////////////////////////

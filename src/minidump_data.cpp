@@ -217,6 +217,7 @@ namespace
 
 	void load_memory_list(MinidumpData& dump, File& file, const minidump::Stream& stream)
 	{
+		CHECK(!dump.threads.empty(), "Loading memory/memory64 list before thread list is not supported");
 		CHECK(dump.memory.empty(), "Duplicate memory/memory64 list");
 
 		minidump::MemoryListHeader header;
@@ -234,11 +235,26 @@ namespace
 
 			dump.memory.emplace(memory_range.base, std::move(m));
 			dump.is_32bit = dump.is_32bit && m.end <= End32;
+
+			for (auto i = dump.loading_stacks.begin(); i != dump.loading_stacks.end(); )
+			{
+				const auto stack_base = std::get<0>(*i);
+				const auto stack_end = std::get<1>(*i);
+				if (stack_base >= memory_range.base && stack_end <= memory_range.base + memory_range.location.size)
+				{
+					CHECK(file.seek(memory_range.location.offset + (stack_base - memory_range.base)), "Alarm!");
+					CHECK(file.read(std::get<2>(*i), stack_end - stack_base), "Alarm!");
+					i = dump.loading_stacks.erase(i);
+				}
+				else
+					++i;
+			}
 		}
 	}
 
 	void load_memory64_list(MinidumpData& dump, File& file, const minidump::Stream& stream)
 	{
+		CHECK(!dump.threads.empty(), "Loading memory/memory64 list before thread list is not supported");
 		CHECK(dump.memory.empty(), "Duplicate memory/memory64 list");
 
 		minidump::Memory64ListHeader header;
@@ -249,6 +265,7 @@ namespace
 
 		std::vector<minidump::Memory64Range> memory(header.entry_count);
 		CHECK(file.read(memory.data(), memory.size() * sizeof(minidump::Memory64Range)), "Couldn't read memory/memory64 list");
+		auto offset = header.offset;
 		for (const auto& memory_range : memory)
 		{
 			MinidumpData::MemoryInfo m;
@@ -256,6 +273,22 @@ namespace
 
 			dump.memory.emplace(memory_range.base, std::move(m));
 			dump.is_32bit = dump.is_32bit && m.end <= End32;
+
+			for (auto i = dump.loading_stacks.begin(); i != dump.loading_stacks.end(); )
+			{
+				const auto stack_base = std::get<0>(*i);
+				const auto stack_end = std::get<1>(*i);
+				if (stack_base >= memory_range.base && stack_end <= memory_range.base + memory_range.size)
+				{
+					CHECK(file.seek(offset + (stack_base - memory_range.base)), "Bad stack data");
+					CHECK(file.read(std::get<2>(*i), stack_end - stack_base), "Couldn't read stack data");
+					i = dump.loading_stacks.erase(i);
+				}
+				else
+					++i;
+			}
+
+			offset += memory_range.size;
 		}
 	}
 
@@ -506,8 +539,15 @@ namespace
 			}
 
 			t.stack.reset(new uint8_t[t.stack_end - t.stack_base]);
-			CHECK(file.seek(thread.stack.location.offset), "Bad thread " << index << " stack offset");
-			CHECK(file.read(t.stack.get(), t.stack_end - t.stack_base), "Couldn't read thread " << index << " stack");
+			if (thread.stack.location.offset)
+			{
+				CHECK(file.seek(thread.stack.location.offset), "Bad thread " << index << " stack offset");
+				CHECK(file.read(t.stack.get(), t.stack_end - t.stack_base), "Couldn't read thread " << index << " stack");
+			}
+			else
+			{
+				dump.loading_stacks.emplace_back(t.stack_base, t.stack_end, t.stack.get());
+			}
 
 			dump.threads.emplace_back(std::move(t));
 			dump.memory_usage.all_stacks += t.stack_base + t.stack_end;
@@ -518,7 +558,7 @@ namespace
 
 	void load_thread_info_list(MinidumpData& dump, File& file, const minidump::Stream& stream)
 	{
-		CHECK(!dump.threads.empty(), "Thread info before thread list is not supported");
+		CHECK(!dump.threads.empty(), "Loading thread info before thread list is not supported");
 
 		minidump::ThreadInfoListHeader header;
 		CHECK_GE(stream.location.size, sizeof header, "Bad thread info list stream");
@@ -673,6 +713,8 @@ std::unique_ptr<MinidumpData> MinidumpData::load(const std::string& file_name)
 			break;
 		}
 	}
+
+	CHECK(dump->loading_stacks.empty(), "Failed to load all stacks");
 
 	if (dump->exception)
 	{

@@ -5,7 +5,7 @@
 
 // Check if all specified flags are set in a value.
 template <typename T, typename = std::enable_if_t<std::is_enum<T>::value>>
-bool has_flags(T value, std::underlying_type_t<T> flags)
+constexpr bool has_flags(T value, std::underlying_type_t<T> flags)
 {
 	return (value & flags) == flags;
 }
@@ -37,6 +37,13 @@ std::string to_hex_min(uint64_t);
 std::string to_human_readable(uint64_t);
 
 //
+template <typename T, typename = std::enable_if_t<std::is_enum<T>::value>>
+constexpr std::underlying_type_t<T> to_raw(T value)
+{
+	return static_cast<std::underlying_type_t<T>>(value);
+}
+
+//
 std::string to_string(double);
 
 //
@@ -44,3 +51,6 @@ unsigned long to_ulong(const std::string&);
 
 //
 void print_data(const uint32_t* data, size_t bytes, size_t columns = 16);
+
+//
+void print_data(uint32_t base, const uint32_t* data, size_t bytes, size_t columns = 16);

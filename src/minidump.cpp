@@ -9,16 +9,13 @@ namespace
 {
 	std::string decode_code_address(const MinidumpData& dump, uint64_t address)
 	{
-		if (!address)
-			return {};
-		std::string result = ::to_hex(address, dump.is_32bit);
 		const auto i = std::find_if(dump.modules.begin(), dump.modules.end(), [address](const auto& module)
 		{
 			return address >= module.image_base && address < module.image_end;
 		});
-		if (i != dump.modules.end())
-			result = i->file_name + "!" + result;
-		return result;
+		return i != dump.modules.end()
+			? i->file_name + "!" + ::to_hex(address, dump.is_32bit)
+			: ::to_hex(address, dump.is_32bit);
 	}
 
 	std::vector<std::pair<uint32_t, uint32_t>> build_call_chain(const MinidumpData::Thread& thread)
@@ -26,30 +23,47 @@ namespace
 		std::vector<std::pair<uint32_t, uint32_t>> chain;
 		auto ebp = thread.context.x86.ebp;
 		chain.emplace_back(ebp, thread.context.x86.eip);
-		while (ebp >= thread.stack_base && ebp + 2 * sizeof(ebp) < thread.stack_end)
+		while (ebp >= thread.stack_base && ebp + 8 < thread.stack_end)
 		{
 			const auto stack_offset = ebp - thread.stack_base;
-			const auto return_address = reinterpret_cast<uint32_t&>(thread.stack[stack_offset + sizeof ebp]);
+			const auto return_address = reinterpret_cast<uint32_t&>(thread.stack[stack_offset + 4]);
 			ebp = reinterpret_cast<uint32_t&>(thread.stack[stack_offset]);
 			chain.emplace_back(ebp, return_address);
 		}
 		return chain;
 	}
 
-	Table print_call_stack(const MinidumpData& dump, const MinidumpData::Thread& thread)
+	Table print_call_stack(const MinidumpData& dump, const MinidumpData::Thread& thread, const MinidumpData::Exception* exception)
 	{
 		if (!thread.start_address || !thread.context.x86.eip || !thread.context.x86.ebp)
 			return {};
-		Table table({{"EBP"}, {"RETURN"}, {"FUNCTION"}});
-		for (const auto& entry : build_call_chain(thread))
+		if (exception && exception->thread_id == thread.id)
 		{
-			table.push_back({
-				::to_hex(entry.first, dump.is_32bit),
-				::to_hex(entry.second, dump.is_32bit),
-				decode_code_address(dump, entry.second),
-			});
+			Table table({{"EBP"}, {"RETURN"}, {"FUNCTION"}, {"EXCEPTION"}});
+			for (const auto& entry : build_call_chain(thread))
+			{
+				table.push_back({
+					::to_hex(entry.first, dump.is_32bit),
+					::to_hex(entry.second, dump.is_32bit),
+					decode_code_address(dump, entry.second),
+					table.rows() == 0 ? exception->to_string(dump.is_32bit) : "",
+				});
+			}
+			return table;
 		}
-		return table;
+		else
+		{
+			Table table({{"EBP"}, {"RETURN"}, {"FUNCTION"}});
+			for (const auto& entry : build_call_chain(thread))
+			{
+				table.push_back({
+					::to_hex(entry.first, dump.is_32bit),
+					::to_hex(entry.second, dump.is_32bit),
+					decode_code_address(dump, entry.second),
+				});
+			}
+			return table;
+		}
 	}
 }
 
@@ -66,7 +80,7 @@ Table Minidump::print_exception_call_stack() const
 {
 	if (!_data->exception)
 		return {};
-	return ::print_call_stack(*_data, *_data->exception->thread);
+	return ::print_call_stack(*_data, *_data->exception->thread, _data->exception.get());
 }
 
 Table Minidump::print_generic_information() const
@@ -177,12 +191,12 @@ Table Minidump::print_thread_call_stack(unsigned long thread_index) const
 {
 	if (thread_index == 0 || thread_index > _data->threads.size())
 		throw std::invalid_argument("Bad thread " + std::to_string(thread_index));
-	return ::print_call_stack(*_data, _data->threads[thread_index - 1]);
+	return ::print_call_stack(*_data, _data->threads[thread_index - 1], _data->exception.get());
 }
 
 Table Minidump::print_threads() const
 {
-	Table table({{"#", Table::Alignment::Right}, {"ID"}, {"STACK"}, {"END"}, {"START"}, {"CURRENT"}});
+	Table table({{"#", Table::Alignment::Right}, {"ID"}, {"STACK"}, {"END"}, {"START"}, {"CURRENT"}, {"NOTES"}});
 	table.reserve(_data->threads.size());
 	for (const auto& thread : _data->threads)
 	{
@@ -193,6 +207,7 @@ Table Minidump::print_threads() const
 			::to_hex(thread.stack_end, _data->is_32bit),
 			decode_code_address(*_data, thread.start_address),
 			decode_code_address(*_data, thread.context.x86.eip),
+			_data->exception && _data->exception->thread_id == thread.id ? "(exception)" : "",
 		});
 	}
 	return table;

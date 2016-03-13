@@ -572,34 +572,33 @@ namespace minidump
 		uint64_t entry_count; //
 	};
 
-	//
-	enum : uint32_t
-	{
-		MEM_COMMIT  = 0x1000,  //
-		MEM_RESERVE = 0x2000,  //
-		MEM_FREE    = 0x10000, //
-	};
-
-	//
-	enum : uint32_t
-	{
-		MEM_PRIVATE = 0x20000,   //
-		MEM_MAPPED  = 0x40000,   //
-		MEM_IMAGE   = 0x1000000, //
-	};
-
 	// (MINIDUMP_MEMORY_INFO).
 	struct MemoryInfo
 	{
-		uint64_t base;              //
-		uint64_t AllocationBase;    //
-		uint32_t AllocationProtect; //
-		uint32_t __alignment1;      //
-		uint64_t size;              //
-		uint32_t state;             //
-		uint32_t Protect;           //
-		uint32_t Type;              //
-		uint32_t __alignment2;      //
+		enum class State : uint32_t
+		{
+			Committed =  0x1000, // (MEM_COMMIT).
+			Reserved  =  0x2000, // (MEM_RESERVE).
+			Free      = 0x10000, // (MEM_FREE).
+		};
+
+		enum class Type : uint32_t
+		{
+			Undefined =         0, //
+			Private   =   0x20000, // (MEM_PRIVATE).
+			Mapped    =   0x40000, // (MEM_MAPPED).
+			Image     = 0x1000000, // (MEM_IMAGE).
+		};
+
+		uint64_t base;                  //
+		uint64_t allocation_base;       //
+		uint32_t allocation_protection; //
+		uint32_t _alignment1;           //
+		uint64_t size;                  //
+		State    state;                 //
+		uint32_t protection;            //
+		Type     type;                  //
+		uint32_t _alignment2;           //
 	};
 
 	////////////////////////////////////////////////////////////
@@ -607,17 +606,6 @@ namespace minidump
 	// Thread state information (ThreadInfoListStream).
 	//
 	////////////////////////////////////////////////////////////
-
-	//
-	enum : uint32_t
-	{
-		MINIDUMP_THREAD_INFO_ERROR_THREAD    = 0x00000001, // A placeholder thread due to an error accessing the thread. No thread information exists beyond the thread identifier.
-		MINIDUMP_THREAD_INFO_EXITED_THREAD   = 0x00000004, // The thread has exited (not running any code) at the time of the dump.
-		MINIDUMP_THREAD_INFO_INVALID_CONTEXT = 0x00000010, // Thread context could not be retrieved.
-		MINIDUMP_THREAD_INFO_INVALID_INFO    = 0x00000008, // Thread information could not be retrieved.
-		MINIDUMP_THREAD_INFO_INVALID_TEB     = 0x00000020, // TEB information could not be retrieved.
-		MINIDUMP_THREAD_INFO_WRITING_THREAD  = 0x00000002, // This is the thread that called MiniDumpWriteDump.
-	};
 
 	// Thread information list header (MINIDUMP_THREAD_INFO_LIST).
 	struct ThreadInfoListHeader
@@ -630,16 +618,26 @@ namespace minidump
 	// Thread information list entry (MINIDUMP_THREAD_INFO).
 	struct ThreadInfo
 	{
-		uint32_t ThreadId;     //
-		uint32_t DumpFlags;    //
-		uint32_t DumpError;    // HRESULT indicating the dump status.
-		uint32_t ExitStatus;   // Thread exit code.
-		uint64_t CreateTime;   // Thread creation time in 100 ns intervals since January 1, 1601 (UTC).
-		uint64_t ExitTime;     // Thread exit time in 100 ns intervals since January 1, 1601 (UTC).
-		uint64_t KernelTime;   // Time spent in kernel mode in 100 ns intervals.
-		uint64_t UserTime;     // Time spent in user mode in 100 ns intervals.
-		uint64_t StartAddress; //
-		uint64_t Affinity;     //
+		enum : uint32_t
+		{
+			Inaccessible  = 0x00000001, // The thread is inaccessible, only its ID is known (MINIDUMP_THREAD_INFO_ERROR_THREAD).
+			Finished      = 0x00000004, // The thread has finished (MINIDUMP_THREAD_INFO_EXITED_THREAD).
+			BadContext    = 0x00000010, // Thread context could not be retrieved (MINIDUMP_THREAD_INFO_INVALID_CONTEXT).
+			BadInfo       = 0x00000008, // Thread information could not be retrieved (MINIDUMP_THREAD_INFO_INVALID_INFO).
+			BadTeb        = 0x00000020, // TEB information could not be retrieved (MINIDUMP_THREAD_INFO_INVALID_TEB).
+			WritingThread = 0x00000002, // This is the thread that called MiniDumpWriteDump (MINIDUMP_THREAD_INFO_WRITING_THREAD).
+		};
+
+		uint32_t thread_id;     //
+		uint32_t dump_flags;    //
+		uint32_t dump_error;    // HRESULT indicating the dump status.
+		uint32_t exit_status;   // Thread exit code.
+		uint64_t create_time;   // Thread creation time in 100 ns intervals since January 1, 1601 (UTC).
+		uint64_t exit_time;     // Thread exit time in 100 ns intervals since January 1, 1601 (UTC).
+		uint64_t kernel_time;   // Time spent in kernel mode in 100 ns intervals.
+		uint64_t user_time;     // Time spent in user mode in 100 ns intervals.
+		uint64_t start_address; //
+		uint64_t affinity;      //
 	};
 
 	////////////////////////////////////////////////////////////

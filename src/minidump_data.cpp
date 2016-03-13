@@ -46,9 +46,9 @@ namespace
 		case Stream::Type::JavaScriptData: return "JavaScriptDataStream";
 		case Stream::Type::SystemMemoryInfo: return "SystemMemoryInfoStream";
 		case Stream::Type::ProcessVmCounters: return "ProcessVmCountersStream";
-		default: throw std::logic_error("Failed to find the name for stream " + std::to_string(std::underlying_type_t<Stream::Type>(type)));
+		default: throw std::logic_error("Failed to find the name for stream " + std::to_string(::to_raw(type)));
 		}
-	};
+	}
 
 	void check_extra_data(const minidump::Stream& stream, uint32_t expected)
 	{
@@ -84,8 +84,31 @@ namespace
 		CHECK(file.read(exception), "Couldn't read exception");
 		check_extra_data(stream, sizeof exception);
 
-		dump.exception = std::make_unique<MinidumpData::Exception>();
-		dump.exception->thread_id = exception.thread_id;
+		auto&& result = std::make_unique<MinidumpData::Exception>();
+		result->thread_id = exception.thread_id;
+		result->code = exception.ExceptionRecord.ExceptionCode;
+		if (exception.ExceptionRecord.ExceptionCode == 0xc0000005)
+		{
+			CHECK_EQ(exception.ExceptionRecord.NumberParameters, 2, "Bad access violation parameter count");
+			switch (exception.ExceptionRecord.ExceptionInformation[0])
+			{
+			case 0:
+				result->operation = MinidumpData::Exception::Operation::Reading;
+				break;
+			case 1:
+				result->operation = MinidumpData::Exception::Operation::Writing;
+				break;
+			case 8:
+				result->operation = MinidumpData::Exception::Operation::Executing;
+				break;
+			default:
+				CHECK(false, "Bad access violation access type (0x" << ::to_hex(exception.ExceptionRecord.ExceptionInformation[0]) << ")");
+			}
+			result->address = exception.ExceptionRecord.ExceptionInformation[1];
+			dump.is_32bit = dump.is_32bit && result->address <= End32;
+		}
+
+		dump.exception = std::move(result);
 	}
 
 	void load_handle_data(MinidumpData& dump, File& file, const minidump::Stream& stream)
@@ -157,14 +180,25 @@ namespace
 			m.end = memory_info.base + memory_info.size;
 			switch (memory_info.state)
 			{
-			case minidump::MEM_COMMIT:
+			case minidump::MemoryInfo::State::Committed:
 				m.state = MinidumpData::MemoryRegion::State::Allocated;
 				break;
-			case minidump::MEM_RESERVE:
+			case minidump::MemoryInfo::State::Reserved:
 				m.state = MinidumpData::MemoryRegion::State::Reserved;
 				break;
 			default:
-				CHECK_EQ(memory_info.state, minidump::MEM_FREE, "Bad memory region state");
+				CHECK(memory_info.state == minidump::MemoryInfo::State::Free, "Unknown memory state (0x" << ::to_hex(::to_raw(memory_info.state)) << ")");
+			}
+			switch (memory_info.type)
+			{
+			case minidump::MemoryInfo::Type::Private:
+			case minidump::MemoryInfo::Type::Mapped:
+			case minidump::MemoryInfo::Type::Image:
+				CHECK(memory_info.state != minidump::MemoryInfo::State::Free, "Bad free memory type (0x" << ::to_hex(::to_raw(memory_info.type)) << ")");
+				break;
+			default:
+				CHECK(memory_info.type == minidump::MemoryInfo::Type::Undefined, "Unknown memory type (0x" << ::to_hex(::to_raw(memory_info.type)) << ")");
+				CHECK(memory_info.state == minidump::MemoryInfo::State::Free, "Bad undefined memory state (0x" << ::to_hex(::to_raw(memory_info.state)) << ")");
 			}
 
 			// NOTE: Temporary collapsing code.
@@ -484,11 +518,7 @@ namespace
 
 	void load_thread_info_list(MinidumpData& dump, File& file, const minidump::Stream& stream)
 	{
-		if (dump.threads.empty())
-		{
-			std::cerr << "ERROR: Thread info list found before thread list" << std::endl;
-			return;
-		}
+		CHECK(!dump.threads.empty(), "Thread info before thread list is not supported");
 
 		minidump::ThreadInfoListHeader header;
 		CHECK_GE(stream.location.size, sizeof header, "Bad thread info list stream");
@@ -503,18 +533,14 @@ namespace
 		{
 			CHECK(file.seek(base + i * header.entry_size), "Bad thread info list");
 			CHECK(file.read(thread_info), "Couldn't read thread info entry");
+			CHECK_EQ(thread_info.dump_flags & ~minidump::ThreadInfo::WritingThread, 0, "Unsupported thread flags");
 
 			const auto j = std::find_if(dump.threads.begin(), dump.threads.end(), [&thread_info](const auto& thread)
 			{
-				return thread.id == thread_info.ThreadId;
+				return thread.id == thread_info.thread_id;
 			});
-			if (j == dump.threads.end())
-			{
-				std::cerr << "ERROR: Thread info for unknown thread " << ::to_hex(thread_info.ThreadId) << std::endl;
-				continue;
-			}
-			j->start_address = thread_info.StartAddress;
-			j->dumping = thread_info.DumpFlags & minidump::MINIDUMP_THREAD_INFO_WRITING_THREAD;
+			CHECK(j != dump.threads.end(), "Found thread info for unknown thread 0x" << ::to_hex(thread_info.thread_id));
+			j->start_address = thread_info.start_address;
 
 			dump.is_32bit = dump.is_32bit && j->start_address <= End32;
 		}
@@ -642,7 +668,7 @@ std::unique_ptr<MinidumpData> MinidumpData::load(const std::string& file_name)
 		default:
 			if (stream.type == Stream::Type::Unused && stream.location.offset == 0 && stream.location.size == 0)
 				break; // A valid stream list may end with such entries.
-			std::cerr << "WARNING: Skipped unknown stream " << std::to_string(std::underlying_type_t<Stream::Type>(stream.type))
+			std::cerr << "WARNING: Skipped unknown stream " << std::to_string(::to_raw(stream.type))
 				<< " (" << stream.location.size << " bytes at 0x" << ::to_hex(stream.location.offset) << ")" << std::endl;
 			break;
 		}
@@ -683,4 +709,34 @@ std::unique_ptr<MinidumpData> MinidumpData::load(const std::string& file_name)
 	}
 
 	return dump;
+}
+
+std::string MinidumpData::Exception::to_string(bool is_32bit) const
+{
+	std::string result = "[0x" + ::to_hex(code) + "]";
+	switch (code)
+	{
+	case 0xc0000005:
+		result += " Access violation";
+		switch (operation)
+		{
+		case Operation::Reading:
+			result += " reading";
+			break;
+		case Operation::Writing:
+			result += " writing";
+			break;
+		case Operation::Executing:
+			result += " executing";
+			break;
+		default:
+			throw std::logic_error("Bad access violation operation");
+		}
+		result += " 0x" + ::to_hex(address, is_32bit);
+		break;
+	case 0xe06d7363:
+		result += " Unhandled C++ exception";
+		break;
+	}
+	return result;
 }

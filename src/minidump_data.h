@@ -36,7 +36,6 @@ public:
 		uint64_t stack_base = 0;
 		uint64_t stack_end = 0;
 		uint64_t start_address = 0;
-		bool dumping = false;
 		union
 		{
 			struct
@@ -51,8 +50,21 @@ public:
 
 	struct Exception
 	{
+		enum class Operation
+		{
+			None,
+			Reading,
+			Writing,
+			Executing,
+		};
+
 		uint32_t thread_id = 0;
 		Thread*  thread = nullptr;
+		uint32_t code = 0;
+		Operation operation = Operation::None;
+		uint64_t address = 0;
+
+		std::string to_string(bool is_32bit) const;
 	};
 
 	struct MemoryInfo

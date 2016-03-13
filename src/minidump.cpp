@@ -194,6 +194,14 @@ Table Minidump::print_thread_call_stack(unsigned long thread_index) const
 	return ::print_call_stack(*_data, _data->threads[thread_index - 1], _data->exception.get());
 }
 
+void Minidump::print_thread_raw_stack(unsigned long thread_index) const
+{
+	if (thread_index == 0 || thread_index > _data->threads.size())
+		throw std::invalid_argument("Bad thread " + std::to_string(thread_index));
+	const auto& thread = _data->threads[thread_index - 1];
+	::print_end_data(thread.stack_base, reinterpret_cast<uint32_t*>(thread.stack.get()), thread.stack_end - thread.stack_base);
+}
+
 Table Minidump::print_threads() const
 {
 	Table table({{"#", Table::Alignment::Right}, {"ID"}, {"STACK"}, {"END"}, {"START"}, {"CURRENT"}, {"NOTES"}});

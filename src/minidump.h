@@ -26,6 +26,7 @@ public:
 	Table print_memory_regions() const;
 	Table print_modules() const;
 	Table print_thread_call_stack(unsigned long thread_index) const;
+	void print_thread_raw_stack(unsigned long thread_index) const;
 	Table print_threads() const;
 	Table print_unloaded_modules() const;
 

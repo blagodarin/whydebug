@@ -201,6 +201,13 @@ Processor::Processor(std::unique_ptr<Minidump>&& dump)
 				table.print(std::cout);
 			}
 		},
+		{ { "?rawstack" }, { "INDEX" },
+			"Print raw stack data of thread INDEX.",
+			[this](const std::vector<std::string>& args)
+			{
+				_dump->print_thread_raw_stack(::to_ulong(args[0]));
+			}
+		},
 		{ { "?rows", "?r" }, {},
 			"Print the number of rows in the current output (excluding filtered rows).",
 			[this](const std::vector<std::string>&)

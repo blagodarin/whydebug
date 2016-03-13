@@ -54,3 +54,6 @@ void print_data(const uint32_t* data, size_t bytes, size_t columns = 16);
 
 //
 void print_data(uint32_t base, const uint32_t* data, size_t bytes, size_t columns = 16);
+
+//
+void print_end_data(uint32_t base, const uint32_t* data, size_t bytes, size_t columns = 16);

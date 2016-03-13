@@ -132,3 +132,26 @@ void print_data(uint32_t base, const uint32_t* data, size_t bytes, size_t column
 			std::cout << std::endl;
 	}
 }
+
+void print_end_data(uint32_t base, const uint32_t* data, size_t bytes, size_t columns)
+{
+	assert(columns > 0);
+	auto size = bytes / sizeof *data;
+	auto skip = columns - size % columns;
+	size += skip;
+	base -= skip * sizeof *data;
+	for (size_t i = 0; i < size; ++i)
+	{
+		if (i % columns == 0)
+			std::cout << '\t' << std::hex << std::setfill('0') << std::setw(2 * sizeof base) << (base + i * sizeof base) << " : ";
+		else
+			std::cout << ' ';
+		std::cout << std::setw(2 * sizeof *data);
+		if  (i < skip)
+			std::cout << std::setfill(' ') << "";
+		else
+			std::cout << std::hex << std::setfill('0') << data[i - skip] << std::dec;
+		if ((i + 1) % columns == 0 || (i + 1) == size)
+			std::cout << std::endl;
+	}
+}

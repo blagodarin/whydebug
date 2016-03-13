@@ -30,21 +30,23 @@ public:
 		uint64_t    image_end = 0;
 	};
 
+	union Context
+	{
+		struct
+		{
+			uint32_t eip;
+			uint32_t esp;
+			uint32_t ebp;
+		} x86;
+	};
+
 	struct Thread
 	{
 		uint32_t id = 0;
 		uint64_t stack_base = 0;
 		uint64_t stack_end = 0;
 		uint64_t start_address = 0;
-		union
-		{
-			struct
-			{
-				uint32_t eip;
-				uint32_t esp;
-				uint32_t ebp;
-			} x86;
-		} context = {};
+		Context context = {};
 		std::unique_ptr<uint8_t[]> stack;
 	};
 
@@ -63,6 +65,7 @@ public:
 		uint32_t code = 0;
 		Operation operation = Operation::None;
 		uint64_t address = 0;
+		Context context = {};
 
 		std::string to_string(bool is_32bit) const;
 	};

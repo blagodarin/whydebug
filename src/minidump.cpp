@@ -18,11 +18,11 @@ namespace
 			: ::to_hex(address, dump.is_32bit);
 	}
 
-	std::vector<std::pair<uint32_t, uint32_t>> build_call_chain(const MinidumpData::Thread& thread)
+	std::vector<std::pair<uint32_t, uint32_t>> build_call_chain(const MinidumpData::Thread& thread, const MinidumpData::Exception* exception)
 	{
 		std::vector<std::pair<uint32_t, uint32_t>> chain;
-		auto ebp = thread.context.x86.ebp;
-		chain.emplace_back(ebp, thread.context.x86.eip);
+		auto ebp = exception ? exception->context.x86.ebp : thread.context.x86.ebp;
+		chain.emplace_back(ebp, exception ? exception->context.x86.eip : thread.context.x86.eip);
 		while (ebp >= thread.stack_base && ebp + 8 < thread.stack_end)
 		{
 			const auto stack_offset = ebp - thread.stack_base;
@@ -40,7 +40,7 @@ namespace
 		if (exception && exception->thread_id == thread.id)
 		{
 			Table table({{"EBP"}, {"RETURN"}, {"FUNCTION"}, {"EXCEPTION"}});
-			for (const auto& entry : build_call_chain(thread))
+			for (const auto& entry : build_call_chain(thread, exception))
 			{
 				table.push_back({
 					::to_hex(entry.first, dump.is_32bit),
@@ -54,7 +54,7 @@ namespace
 		else
 		{
 			Table table({{"EBP"}, {"RETURN"}, {"FUNCTION"}});
-			for (const auto& entry : build_call_chain(thread))
+			for (const auto& entry : build_call_chain(thread, nullptr))
 			{
 				table.push_back({
 					::to_hex(entry.first, dump.is_32bit),

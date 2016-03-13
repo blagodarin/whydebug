@@ -265,9 +265,9 @@ namespace minidump
 	struct ExceptionStream
 	{
 		uint32_t  thread_id;       //
-		uint32_t  __alignment;     //
+		uint32_t  _alignment;      //
 		Exception ExceptionRecord; //
-		Location  thread_context;  //
+		Location  context;         //
 	};
 
 	////////////////////////////////////////////////////////////

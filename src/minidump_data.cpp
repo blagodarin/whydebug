@@ -329,21 +329,6 @@ namespace
 
 		if (misc_info.flags & minidump::MiscInfo2::ProcessorPowerInfo)
 			dump.generic.emplace_back("CPU frequency:", ::to_string(misc_info.processor_current_mhz / 1000.0) + " GHz");
-
-		if (stream.location.size < sizeof(minidump::MiscInfo3))
-			return;
-
-		// TODO: Parse MiscInfo3.
-
-		if (stream.location.size < sizeof(minidump::MiscInfo4))
-			return;
-
-		// TODO: Parse MiscInfo4.
-
-		if (stream.location.size < sizeof(minidump::MiscInfo5))
-			return;
-
-		// TODO: Parse MiscInfo5.
 	}
 
 	void load_module_list(MinidumpData& dump, File& file, const minidump::Stream& stream)
@@ -588,6 +573,25 @@ namespace
 		}
 	}
 
+	void load_tokens(MinidumpData& dump, File& file, const minidump::Stream& stream)
+	{
+		minidump::TokenInfoListHeader header;
+		CHECK_GE(stream.location.size, sizeof header, "Bad token info list stream");
+		CHECK(file.seek(stream.location.offset), "Bad token info list offset");
+		CHECK(file.read(header), "Couldn't read token info list header");
+		CHECK_EQ(header.total_size, stream.location.size, "Bad token stream header");
+		CHECK_GE(header.header_size, sizeof header, "Bad token stream header");
+
+		minidump::TokenInfoHeader token_info_header;
+		CHECK_GE(header.entry_header_size, sizeof token_info_header, "Bad token entry header size");
+		auto base = stream.location.offset + header.header_size;
+		for (uint32_t i = 0; i < header.entry_count; ++i)
+		{
+			CHECK(file.seek(base), "Bad token stream");
+			CHECK(file.read(token_info_header), "Couldn't read token entry header");
+		}
+	}
+
 	void load_unloaded_module_list(MinidumpData& dump, File& file, const minidump::Stream& stream)
 	{
 		CHECK(dump.unloaded_modules.empty(), "Duplicate unloaded module list");
@@ -620,27 +624,58 @@ namespace
 
 	void load_vm_counters(MinidumpData& dump, File& file, const minidump::Stream& stream)
 	{
-		minidump::VmCounters1 vm_counters;
-		CHECK(stream.location.size == sizeof vm_counters, "Bad ProcessVmCountersStream");
+		union
+		{
+			minidump::VmCounters1 vm_counters;
+			minidump::VmCounters2 vm_counters2;
+		};
 		CHECK(file.seek(stream.location.offset), "Bad ProcessVmCountersStream offset");
-		CHECK(file.read(vm_counters), "Couldn't read ProcessVmCountersStream");
-		CHECK_EQ(vm_counters.revision, minidump::VmCounters1::Revision, "Unsupported ProcessVmCountersStream revision");
+		switch (stream.location.size)
+		{
+		case sizeof(minidump::VmCounters1):
+			CHECK(file.read(vm_counters), "Couldn't read ProcessVmCountersStream");
+			CHECK_EQ(vm_counters.revision, minidump::VmCounters1::Revision, "Unsupported ProcessVmCountersStream revision " << vm_counters.revision);
+			CHECK(vm_counters.flags == 0, "Unsupported ProcessVmCountersStream flags 0x" << ::to_hex(vm_counters.flags));
+			break;
+		case sizeof(minidump::VmCounters2):
+			CHECK(file.read(vm_counters2), "Couldn't read ProcessVmCountersStream");
+			CHECK_EQ(vm_counters.revision, minidump::VmCounters2::Revision, "Unsupported ProcessVmCountersStream revision " << vm_counters.revision);
+			break;
+		default:
+			CHECK(false, "Bad ProcessVmCountersStream size " << stream.location.size);
+		}
 
-		dump.generic.emplace_back("Page fault count:", std::to_string(vm_counters.page_fault_count));
+		if (vm_counters.revision == minidump::VmCounters1::Revision
+			|| (vm_counters.revision == minidump::VmCounters2::Revision && vm_counters.flags & minidump::VmCounters2::Basic))
+		{
+			dump.generic.emplace_back("Page fault count:", std::to_string(vm_counters.page_fault_count));
 
-		dump.generic.emplace_back("Page file usage:", ::to_human_readable(vm_counters.page_file_usage));
-		dump.generic.emplace_back("Peak page file usage:", ::to_human_readable(vm_counters.peak_page_file_usage));
+			dump.generic.emplace_back("Page file usage:", ::to_human_readable(vm_counters.page_file_usage));
+			dump.generic.emplace_back("Peak page file usage:", ::to_human_readable(vm_counters.peak_page_file_usage));
 
-		dump.generic.emplace_back("Working set size:", ::to_human_readable(vm_counters.working_set_size));
-		dump.generic.emplace_back("Peak working set size:", ::to_human_readable(vm_counters.peak_working_set_size));
+			dump.generic.emplace_back("Working set size:", ::to_human_readable(vm_counters.working_set_size));
+			dump.generic.emplace_back("Peak working set size:", ::to_human_readable(vm_counters.peak_working_set_size));
 
-		dump.generic.emplace_back("Paged pool usage:", ::to_human_readable(vm_counters.paged_pool_usage));
-		dump.generic.emplace_back("Peak paged pool usage:", ::to_human_readable(vm_counters.peak_paged_pool_usage));
+			dump.generic.emplace_back("Paged pool usage:", ::to_human_readable(vm_counters.paged_pool_usage));
+			dump.generic.emplace_back("Peak paged pool usage:", ::to_human_readable(vm_counters.peak_paged_pool_usage));
 
-		dump.generic.emplace_back("Non-paged pool usage:", ::to_human_readable(vm_counters.non_paged_pool_usage));
-		dump.generic.emplace_back("Peak non-paged pool usage:", ::to_human_readable(vm_counters.peak_non_paged_pool_usage));
+			dump.generic.emplace_back("Non-paged pool usage:", ::to_human_readable(vm_counters.non_paged_pool_usage));
+			dump.generic.emplace_back("Peak non-paged pool usage:", ::to_human_readable(vm_counters.peak_non_paged_pool_usage));
+		}
 
-		dump.generic.emplace_back("Private usage:", ::to_human_readable(vm_counters.private_usage));
+		if (vm_counters.revision == minidump::VmCounters2::Revision && vm_counters.flags & minidump::VmCounters2::VirtualSize)
+		{
+			dump.generic.emplace_back("Virtual size:", ::to_human_readable(vm_counters2.virtual_size));
+			dump.generic.emplace_back("Peak virtual size:", ::to_human_readable(vm_counters2.peak_virtual_size));
+		}
+
+		if (vm_counters.revision == minidump::VmCounters1::Revision)
+			dump.generic.emplace_back("Private usage:", ::to_human_readable(vm_counters.private_usage));
+		else if (vm_counters.revision == minidump::VmCounters2::Revision && vm_counters.flags & minidump::VmCounters2::Ex)
+			dump.generic.emplace_back("Private usage:", ::to_human_readable(vm_counters2.private_usage));
+
+		if (vm_counters.revision == minidump::VmCounters2::Revision && vm_counters.flags & minidump::VmCounters2::Ex2)
+			dump.generic.emplace_back("Private working set size:", ::to_human_readable(vm_counters2.private_working_set_size));
 	}
 }
 
@@ -700,6 +735,9 @@ std::unique_ptr<MinidumpData> MinidumpData::load(const std::string& file_name)
 			break;
 		case Stream::Type::ThreadInfoList:
 			load_thread_info_list(*dump, file, stream);
+			break;
+		case Stream::Type::Token:
+			load_tokens(*dump, file, stream);
 			break;
 		case Stream::Type::SystemMemoryInfo:
 			load_system_memory_info(*dump, file, stream);

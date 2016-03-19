@@ -78,10 +78,10 @@ namespace minidump
 			MemoryInfoList      = 16,     // Memory region description information (MemoryInfoListStream).
 			ThreadInfoList      = 17,     // Thread state information (ThreadInfoListStream).
 			HandleOperationList = 18,     // Operation list information (HandleOperationListStream).
-			Token               = 19,     // ... (TokenStream).
+			Token               = 19,     // Token information (TokenStream).
 			JavaScriptData      = 20,     // ... (JavaScriptDataStream).
-			SystemMemoryInfo    = 21,     // ... (SystemMemoryInfoStream).
-			ProcessVmCounters   = 22,     // ... (ProcessVmCountersStream).
+			SystemMemoryInfo    = 21,     // Global system memory/performance information (SystemMemoryInfoStream).
+			ProcessVmCounters   = 22,     // Process VM counters (ProcessVmCountersStream).
 			LastReserved        = 0xffff, // Any value greater than this value will not be used by the system (LastReservedStream).
 		};
 
@@ -526,8 +526,8 @@ namespace minidump
 			BuildString = 0x00000100, // (MINIDUMP_MISC4_BUILDSTRING).
 		};
 
-		uint16_t build_string[260];      //
-		uint16_t debug_build_string[40]; //
+		char16_t build_string[260];      //
+		char16_t debug_build_string[40]; //
 	};
 
 	// (MINIDUMP_MISC_INFO_5).
@@ -638,6 +638,29 @@ namespace minidump
 		uint64_t user_time;     // Time spent in user mode in 100 ns intervals.
 		uint64_t start_address; //
 		uint64_t affinity;      //
+	};
+
+	////////////////////////////////////////////////////////////
+	//
+	// Token information (TokenStream).
+	//
+	////////////////////////////////////////////////////////////
+
+	// (MINIDUMP_TOKEN_INFO_LIST).
+	struct TokenInfoListHeader
+	{
+		uint32_t total_size;        // Total bytes in the stream.
+		uint32_t entry_count;       //
+		uint32_t header_size;       //
+		uint32_t entry_header_size; //
+	};
+
+	// (MINIDUMP_TOKEN_INFO_HEADER).
+	struct TokenInfoHeader
+	{
+		uint32_t size;   //
+		uint32_t id;     // Process/thread identifier.
+		uint64_t handle; //
 	};
 
 	////////////////////////////////////////////////////////////
@@ -811,6 +834,43 @@ namespace minidump
 		uint64_t private_usage;             //
 
 		static constexpr uint16_t Revision = 1;
+	};
+
+	// (MINIDUMP_PROCESS_VM_COUNTERS_2, see also PROCESS_MEMORY_COUNTERS).
+	struct VmCounters2
+	{
+		enum : uint32_t
+		{
+			Basic       = 0x00000001, // (MINIDUMP_PROCESS_VM_COUNTERS).
+			VirtualSize = 0x00000002, // (MINIDUMP_PROCESS_VM_COUNTERS_VIRTUALSIZE).
+			Ex          = 0x00000004, // (MINIDUMP_PROCESS_VM_COUNTERS_EX).
+			Ex2         = 0x00000008, // (MINIDUMP_PROCESS_VM_COUNTERS_EX2).
+			Job         = 0x00000010, // (MINIDUMP_PROCESS_VM_COUNTERS_JOB).
+		};
+
+		uint16_t revision;                      //
+		uint16_t flags;                         //
+		uint32_t page_fault_count;              //
+		uint64_t peak_working_set_size;         //
+		uint64_t working_set_size;              //
+		uint64_t peak_paged_pool_usage;         //
+		uint64_t paged_pool_usage;              //
+		uint64_t peak_non_paged_pool_usage;     //
+		uint64_t non_paged_pool_usage;          //
+		uint64_t page_file_usage;               //
+		uint64_t peak_page_file_usage;          //
+		uint64_t peak_virtual_size;             // Requires 'VirtualSize'.
+		uint64_t virtual_size;                  // Requires 'VirtualSize'.
+		uint64_t private_usage;                 // Requires 'Ex'.
+		uint64_t private_working_set_size;      // Requires 'Ex2'.
+		uint64_t shared_commit_usage;           // Requires 'Ex2'.
+		uint64_t job_shared_commit_usage;       // Requires 'Job'.
+		uint64_t job_private_commit_usage;      // Requires 'Job'.
+		uint64_t job_peak_private_commit_usage; // Requires 'Job'.
+		uint64_t job_private_commit_limit;      // Requires 'Job'.
+		uint64_t job_total_commit_limit;        // Requires 'Job'.
+
+		static constexpr uint16_t Revision = 2;
 	};
 
 	////////////////////////////////////////////////////////////

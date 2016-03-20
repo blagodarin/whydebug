@@ -42,7 +42,7 @@ namespace
 		case Stream::Type::MemoryInfoList: return "MemoryInfoListStream";
 		case Stream::Type::ThreadInfoList: return "ThreadInfoListStream";
 		case Stream::Type::HandleOperationList: return "HandleOperationListStream";
-		case Stream::Type::Token: return "TokenStream";
+		case Stream::Type::Tokens: return "TokenStream";
 		case Stream::Type::JavaScriptData: return "JavaScriptDataStream";
 		case Stream::Type::SystemMemoryInfo: return "SystemMemoryInfoStream";
 		case Stream::Type::ProcessVmCounters: return "ProcessVmCountersStream";
@@ -573,7 +573,7 @@ namespace
 		}
 	}
 
-	void load_tokens(MinidumpData& dump, File& file, const minidump::Stream& stream)
+	void load_tokens(MinidumpData&, File& file, const minidump::Stream& stream)
 	{
 		minidump::TokenInfoListHeader header;
 		CHECK_GE(stream.location.size, sizeof header, "Bad token info list stream");
@@ -698,59 +698,35 @@ std::unique_ptr<MinidumpData> MinidumpData::load(const std::string& file_name)
 	CHECK(file.seek(header.stream_list_offset), "Bad stream list offset");
 	CHECK(file.read(streams.data(), streams.size() * sizeof(minidump::Stream)), "Couldn't read stream list");
 
+	static const std::map<minidump::Stream::Type, void (*)(MinidumpData&, File&, const minidump::Stream&)> handlers =
+	{
+		{ minidump::Stream::Type::ThreadList, load_thread_list },
+		{ minidump::Stream::Type::ModuleList, load_module_list },
+		{ minidump::Stream::Type::MemoryList, load_memory_list },
+		{ minidump::Stream::Type::Memory64List, load_memory64_list },
+		{ minidump::Stream::Type::Exception, load_exception },
+		{ minidump::Stream::Type::SystemInfo, load_system_info },
+		{ minidump::Stream::Type::HandleData, load_handle_data },
+		{ minidump::Stream::Type::UnloadedModuleList, load_unloaded_module_list },
+		{ minidump::Stream::Type::MiscInfo, load_misc_info },
+		{ minidump::Stream::Type::MemoryInfoList, load_memory_info_list },
+		{ minidump::Stream::Type::ThreadInfoList, load_thread_info_list },
+		{ minidump::Stream::Type::Tokens, load_tokens },
+		{ minidump::Stream::Type::SystemMemoryInfo, load_system_memory_info },
+		{ minidump::Stream::Type::ProcessVmCounters, load_vm_counters },
+	};
+
 	for (const auto& stream : streams)
 	{
-		using namespace minidump;
-		switch (stream.type)
+		const auto i = handlers.find(stream.type);
+		if (i != handlers.end())
+			i->second(*dump, file, stream);
+		else
 		{
-		case Stream::Type::ThreadList:
-			load_thread_list(*dump, file, stream);
-			break;
-		case Stream::Type::ModuleList:
-			load_module_list(*dump, file, stream);
-			break;
-		case Stream::Type::MemoryList:
-			load_memory_list(*dump, file, stream);
-			break;
-		case Stream::Type::Memory64List:
-			load_memory64_list(*dump, file, stream);
-			break;
-		case Stream::Type::Exception:
-			load_exception(*dump, file, stream);
-			break;
-		case Stream::Type::SystemInfo:
-			load_system_info(*dump, file, stream);
-			break;
-		case Stream::Type::HandleData:
-			load_handle_data(*dump, file, stream);
-			break;
-		case Stream::Type::UnloadedModuleList:
-			load_unloaded_module_list(*dump, file, stream);
-			break;
-		case Stream::Type::MiscInfo:
-			load_misc_info(*dump, file, stream);
-			break;
-		case Stream::Type::MemoryInfoList:
-			load_memory_info_list(*dump, file, stream);
-			break;
-		case Stream::Type::ThreadInfoList:
-			load_thread_info_list(*dump, file, stream);
-			break;
-		case Stream::Type::Token:
-			load_tokens(*dump, file, stream);
-			break;
-		case Stream::Type::SystemMemoryInfo:
-			load_system_memory_info(*dump, file, stream);
-			break;
-		case Stream::Type::ProcessVmCounters:
-			load_vm_counters(*dump, file, stream);
-			break;
-		default:
-			if (stream.type == Stream::Type::Unused && stream.location.offset == 0 && stream.location.size == 0)
-				break; // A valid stream list may end with such entries.
+			if (stream.type == minidump::Stream::Type::Unused && stream.location.offset == 0 && stream.location.size == 0)
+				continue; // A valid stream list may end with such entries.
 			std::cerr << "WARNING: Skipped unknown stream " << std::to_string(::to_raw(stream.type))
 				<< " (" << stream.location.size << " bytes at 0x" << ::to_hex(stream.location.offset) << ")" << std::endl;
-			break;
 		}
 	}
 

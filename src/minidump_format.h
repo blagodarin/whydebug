@@ -78,7 +78,7 @@ namespace minidump
 			MemoryInfoList      = 16,     // Memory region description information (MemoryInfoListStream).
 			ThreadInfoList      = 17,     // Thread state information (ThreadInfoListStream).
 			HandleOperationList = 18,     // Operation list information (HandleOperationListStream).
-			Token               = 19,     // Token information (TokenStream).
+			Tokens              = 19,     // Token information (TokenStream).
 			JavaScriptData      = 20,     // ... (JavaScriptDataStream).
 			SystemMemoryInfo    = 21,     // Global system memory/performance information (SystemMemoryInfoStream).
 			ProcessVmCounters   = 22,     // Process VM counters (ProcessVmCountersStream).

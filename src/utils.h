@@ -4,6 +4,13 @@
 #include <vector>
 
 // Check if all specified flags are set in a value.
+template <typename T, typename = std::enable_if_t<std::is_unsigned<T>::value>>
+constexpr bool has_flags(T value, T flags)
+{
+	return (value & flags) == flags;
+}
+
+// Check if all specified flags are set in a value.
 template <typename T, typename = std::enable_if_t<std::is_enum<T>::value>>
 constexpr bool has_flags(T value, std::underlying_type_t<T> flags)
 {

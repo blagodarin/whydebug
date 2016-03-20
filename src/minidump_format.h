@@ -113,66 +113,207 @@ namespace minidump
 		Location    context;        // Thread context location (see below).
 	};
 
-	// Thread context for x86 (CONTEXT).
-	struct ThreadContextX86
+	union ThreadContext
 	{
 		enum : uint32_t
 		{
-			I386              = 0x00010000, // (CONTEXT_I386).
 			Control           = 0x00000001, // (CONTEXT_CONTROL).
 			Integer           = 0x00000002, // (CONTEXT_INTEGER).
 			Segments          = 0x00000004, // (CONTEXT_SEGMENTS).
 			FloatingPoint     = 0x00000008, // (CONTEXT_FLOATING_POINT).
 			DebugRegisters    = 0x00000010, // (CONTEXT_DEBUG_REGISTERS).
 			ExtendedRegisters = 0x00000020, // (CONTEXT_EXTENDED_REGISTERS).
-		} flags;
+			XState            = 0x00000040, // (CONTEXT_XSTATE).
 
-		// CONTEXT_DEBUG_REGISTERS
-		uint32_t dr0;
-		uint32_t dr1;
-		uint32_t dr2;
-		uint32_t dr3;
-		uint32_t dr6;
-		uint32_t dr7;
+			X86               = 0x00010000, // (CONTEXT_I386).
+			X64               = 0x00100000, // (CONTEXT_AMD64).
 
-		// CONTEXT_FLOATING_POINT
+			StateMask         = 0x000000ff,
+			CpuMask           = 0xffffff00,
+		};
+
+		// Thread context for x86 (CONTEXT).
 		struct
 		{
-			uint32_t control_word;
-			uint32_t status_word;
-			uint32_t tag_word;
-			uint32_t error_offset;
-			uint32_t error_selector;
-			uint32_t data_offset;
-			uint32_t data_selector;
-			uint8_t  register_area[80];
-			uint32_t cr0_npx_state;
-		} float_save;
+			uint32_t context_flags;
 
-		// CONTEXT_SEGMENTS
-		uint32_t gs;
-		uint32_t fs;
-		uint32_t es;
-		uint32_t ds;
+			// CONTEXT_DEBUG_REGISTERS
+			uint32_t dr0;
+			uint32_t dr1;
+			uint32_t dr2;
+			uint32_t dr3;
+			uint32_t dr6;
+			uint32_t dr7;
 
-		// CONTEXT_INTEGER
-		uint32_t edi;
-		uint32_t esi;
-		uint32_t ebx;
-		uint32_t edx;
-		uint32_t ecx;
-		uint32_t eax;
+			// CONTEXT_FLOATING_POINT
+			struct
+			{
+				uint32_t control_word;
+				uint32_t status_word;
+				uint32_t tag_word;
+				uint32_t error_offset;
+				uint32_t error_selector;
+				uint32_t data_offset;
+				uint32_t data_selector;
+				uint8_t  register_area[80];
+				uint32_t cr0_npx_state;
+			} float_save;
 
-		// CONTEXT_CONTROL
-		uint32_t ebp;
-		uint32_t eip;
-		uint32_t cs; // "Must be sanitized", whatever that means.
-		uint32_t eflags; // "Must be sanitized", whatever that means.
-		uint32_t esp;
-		uint32_t ss;
+			// CONTEXT_SEGMENTS
+			uint32_t gs;
+			uint32_t fs;
+			uint32_t es;
+			uint32_t ds;
 
-		// CONTEXT_EXTENDED_REGISTERS
-		uint8_t extended_registers[512];
+			// CONTEXT_INTEGER
+			uint32_t edi;
+			uint32_t esi;
+			uint32_t ebx;
+			uint32_t edx;
+			uint32_t ecx;
+			uint32_t eax;
+
+			// CONTEXT_CONTROL
+			uint32_t ebp;
+			uint32_t eip;
+			uint32_t cs; // "Must be sanitized", whatever that means.
+			uint32_t eflags; // "Must be sanitized", whatever that means.
+			uint32_t esp;
+			uint32_t ss;
+
+			// CONTEXT_EXTENDED_REGISTERS
+			uint8_t extended_registers[512];
+		} x86;
+
+		// Thread context for x64 (CONTEXT).
+		struct
+		{
+			// x86/x64 128-bit SSE register.
+			union Xmm
+			{
+				int8_t   i8[16];
+				int16_t  i16[8];
+				int32_t  i32[4];
+				int64_t  i64[2];
+				uint8_t  u8[16];
+				uint16_t u16[8];
+				uint32_t u32[4];
+				uint64_t u64[2];
+				float    f32[4];
+				double   f64[2];
+			};
+
+			uint64_t p1_home;
+			uint64_t p2_home;
+			uint64_t p3_home;
+			uint64_t p4_home;
+			uint64_t p5_home;
+			uint64_t p6_home;
+
+			uint32_t context_flags;
+			uint32_t mx_csr;
+
+			// CONTEXT_CONTROL
+			uint16_t cs;
+
+			// CONTEXT_SEGMENTS
+			uint16_t ds;
+			uint16_t es;
+			uint16_t fs;
+			uint16_t gs;
+
+			// CONTEXT_CONTROL
+			uint16_t ss;
+			uint32_t eflags;
+
+			// CONTEXT_DEBUG_REGISTERS
+			uint64_t dr0;
+			uint64_t dr1;
+			uint64_t dr2;
+			uint64_t dr3;
+			uint64_t dr6;
+			uint64_t dr7;
+
+			// CONTEXT_INTEGER
+			uint64_t rax;
+			uint64_t rcx;
+			uint64_t rdx;
+			uint64_t rbx;
+
+			// CONTEXT_CONTROL
+			uint64_t rsp;
+
+			// CONTEXT_INTEGER
+			uint64_t rbp;
+			uint64_t rsi;
+			uint64_t rdi;
+			uint64_t r8;
+			uint64_t r9;
+			uint64_t r10;
+			uint64_t r11;
+			uint64_t r12;
+			uint64_t r13;
+			uint64_t r14;
+			uint64_t r15;
+
+			// CONTEXT_CONTROL
+			uint64_t rip;
+
+			// CONTEXT_FLOATING_POINT
+			union
+			{
+				struct
+				{
+					uint16_t control_word;
+					uint16_t status_word;
+					uint8_t  tag_word;
+					uint8_t  reserved1;
+					uint16_t error_opcode;
+					uint32_t error_offset;
+					uint16_t error_selector;
+					uint16_t reserved2;
+					uint32_t data_offset;
+					uint16_t data_selector;
+					uint16_t reserved3;
+					uint32_t mx_csr;
+					uint32_t mx_csr_mask;
+					Xmm      float_registers[8];
+					Xmm      xmm_registers[16];
+					uint8_t  reserved4[96];
+				} float_save;
+				struct
+				{
+					Xmm header[2];
+					Xmm legacy[8];
+					Xmm xmm0;
+					Xmm xmm1;
+					Xmm xmm2;
+					Xmm xmm3;
+					Xmm xmm4;
+					Xmm xmm5;
+					Xmm xmm6;
+					Xmm xmm7;
+					Xmm xmm8;
+					Xmm xmm9;
+					Xmm xmm10;
+					Xmm xmm11;
+					Xmm xmm12;
+					Xmm xmm13;
+					Xmm xmm14;
+					Xmm xmm15;
+				} sse;
+			};
+
+			Xmm      vector_register[26];
+			uint64_t vector_control;
+
+			// CONTEXT_DEBUG_REGISTERS
+			uint64_t debug_control;
+			uint64_t last_branch_to_rip;
+			uint64_t last_branch_from_rip;
+			uint64_t last_exception_to_rip;
+			uint64_t last_exception_from_rip;
+		} x64;
 	};
 
 	////////////////////////////////////////////////////////////

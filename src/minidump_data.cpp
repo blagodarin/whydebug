@@ -59,6 +59,24 @@ namespace
 		}
 	}
 
+	void load_thread_context(minidump::ThreadContext& context, File& file, const minidump::Location& location)
+	{
+		CHECK(file.seek(location.offset), "Bad thread context offset");
+		switch (location.size)
+		{
+		case sizeof context.x86:
+			CHECK(file.read(context.x86), "Couldn't read x86 thread context");
+			CHECK(::has_flags(context.x86.context_flags, minidump::ThreadContext::X86 | minidump::ThreadContext::Control), "Bad x86 thread context");
+			break;
+		case sizeof context.x64:
+			CHECK(file.read(context.x64), "Couldn't read x64 thread context");
+			CHECK(::has_flags(context.x64.context_flags, minidump::ThreadContext::X64 | minidump::ThreadContext::Control), "Bad x64 thread context");
+			CHECK(false, "x64 thread contexts are not supported");
+		default:
+			CHECK(false, "Bad thread context size " << location.size);
+		}
+	}
+
 	std::u16string read_string(File& file, uint32_t offset)
 	{
 		minidump::StringHeader header;
@@ -84,18 +102,15 @@ namespace
 		CHECK(file.read(exception), "Couldn't read exception");
 		check_extra_data(stream, sizeof exception);
 
-		minidump::ThreadContextX86 context;
-		CHECK_EQ(exception.context.size, sizeof context, "Bad exception context size");
-		CHECK(file.seek(exception.context.offset), "Bad exception context offset");
-		CHECK(file.read(context), "Couldn't read exception context");
-		CHECK(::has_flags(context.flags, minidump::ThreadContextX86::I386 | minidump::ThreadContextX86::Control), "Bad exception context");
+		minidump::ThreadContext context;
+		::load_thread_context(context, file, exception.context);
 
 		auto&& result = std::make_unique<MinidumpData::Exception>();
 		result->thread_id = exception.thread_id;
 		result->code = exception.ExceptionRecord.ExceptionCode;
-		result->context.x86.eip = context.eip;
-		result->context.x86.esp = context.esp;
-		result->context.x86.ebp = context.ebp;
+		result->context.x86.eip = context.x86.eip;
+		result->context.x86.esp = context.x86.esp;
+		result->context.x86.ebp = context.x86.ebp;
 		if (exception.ExceptionRecord.ExceptionCode == 0xc0000005)
 		{
 			CHECK_EQ(exception.ExceptionRecord.NumberParameters, 2, "Bad access violation parameter count");
@@ -511,19 +526,16 @@ namespace
 		{
 			const auto index = &thread - &threads.front() + 1;
 
-			minidump::ThreadContextX86 context;
-			CHECK_EQ(thread.context.size, sizeof context, "Bad thread context size");
-			CHECK(file.seek(thread.context.offset), "Bad thread " << index << " context offset");
-			CHECK(file.read(context), "Couldn't read thread " << index << " context");
-			CHECK(::has_flags(context.flags, minidump::ThreadContextX86::I386 | minidump::ThreadContextX86::Control), "Bad thread context");
+			minidump::ThreadContext context;
+			::load_thread_context(context, file, thread.context);
 
 			MinidumpData::Thread t;
 			t.id = thread.id;
 			t.stack_base = thread.stack.base;
 			t.stack_end = thread.stack.base + thread.stack.location.size;
-			t.context.x86.eip = context.eip;
-			t.context.x86.esp = context.esp;
-			t.context.x86.ebp = context.ebp;
+			t.context.x86.eip = context.x86.eip;
+			t.context.x86.esp = context.x86.esp;
+			t.context.x86.ebp = context.x86.ebp;
 
 			t.stack.reset(new uint8_t[t.stack_end - t.stack_base]);
 			if (thread.stack.location.offset)

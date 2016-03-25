@@ -80,7 +80,19 @@ std::string to_human_readable(uint64_t bytes)
 	result /= 1024;
 	if (result < 1024)
 		return ::to_string(result) + " GiB";
-	return ::to_string(result) + " TiB";
+	result /= 1024;
+	if (result < 1024)
+		return ::to_string(result) + " TiB";
+	result /= 1024;
+	if (result < 1024)
+		return ::to_string(result) + " PiB";
+	result /= 1024;
+	if (result < 1024)
+		return ::to_string(result) + " EiB";
+	result /= 1024;
+	if (result < 1024)
+		return ::to_string(result) + " ZiB";
+	return ::to_string(result / 1024) + " YiB";
 }
 
 std::string to_string(double value)
@@ -118,6 +130,22 @@ void print_data(const uint32_t* data, size_t bytes, size_t columns)
 }
 
 void print_data(uint32_t base, const uint32_t* data, size_t bytes, size_t columns)
+{
+	assert(columns > 0);
+	const auto size = bytes / sizeof *data;
+	for (size_t i = 0; i < size; ++i)
+	{
+		if (i % columns == 0)
+			std::cout << '\t' << std::hex << std::setfill('0') << std::setw(2 * sizeof base) << (base + i * sizeof base) << " : ";
+		else
+			std::cout << ' ';
+		std::cout << std::hex << std::setfill('0') << std::setw(2 * sizeof *data) << data[i] << std::dec;
+		if ((i + 1) % columns == 0 || (i + 1) == size)
+			std::cout << std::endl;
+	}
+}
+
+void print_data(uint64_t base, const uint64_t* data, size_t bytes, size_t columns)
 {
 	assert(columns > 0);
 	const auto size = bytes / sizeof *data;

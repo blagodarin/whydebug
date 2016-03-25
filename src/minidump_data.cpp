@@ -59,22 +59,31 @@ namespace
 		}
 	}
 
-	void load_thread_context(minidump::ThreadContext& context, File& file, const minidump::Location& location)
+	std::unique_ptr<MinidumpData::Context> load_thread_context(File& file, const minidump::Location& location)
 	{
+		auto result = std::make_unique<MinidumpData::Context>();
+		minidump::ThreadContext context;
 		CHECK(file.seek(location.offset), "Bad thread context offset");
 		switch (location.size)
 		{
 		case sizeof context.x86:
 			CHECK(file.read(context.x86), "Couldn't read x86 thread context");
 			CHECK(::has_flags(context.x86.context_flags, minidump::ThreadContext::X86 | minidump::ThreadContext::Control), "Bad x86 thread context");
+			result->x86.eip = context.x86.eip;
+			result->x86.esp = context.x86.esp;
+			result->x86.ebp = context.x86.ebp;
 			break;
-		case sizeof context.x64:
+		case sizeof context.x64: // Assuming WoW64.
 			CHECK(file.read(context.x64), "Couldn't read x64 thread context");
 			CHECK(::has_flags(context.x64.context_flags, minidump::ThreadContext::X64 | minidump::ThreadContext::Control), "Bad x64 thread context");
-			CHECK(false, "x64 thread contexts are not supported");
+			result->x86.eip = context.x64.rip;
+			result->x86.esp = context.x64.rsp;
+			result->x86.ebp = context.x64.rbp;
+			break;
 		default:
 			CHECK(false, "Bad thread context size " << location.size);
 		}
+		return result;
 	}
 
 	std::u16string read_string(File& file, uint32_t offset)
@@ -102,15 +111,10 @@ namespace
 		CHECK(file.read(exception), "Couldn't read exception");
 		check_extra_data(stream, sizeof exception);
 
-		minidump::ThreadContext context;
-		::load_thread_context(context, file, exception.context);
-
 		auto&& result = std::make_unique<MinidumpData::Exception>();
 		result->thread_id = exception.thread_id;
 		result->code = exception.ExceptionRecord.ExceptionCode;
-		result->context.x86.eip = context.x86.eip;
-		result->context.x86.esp = context.x86.esp;
-		result->context.x86.ebp = context.x86.ebp;
+		result->context = ::load_thread_context(file, exception.context);
 		if (exception.ExceptionRecord.ExceptionCode == 0xc0000005)
 		{
 			CHECK_EQ(exception.ExceptionRecord.NumberParameters, 2, "Bad access violation parameter count");
@@ -129,7 +133,7 @@ namespace
 				CHECK(false, "Bad access violation access type (0x" << ::to_hex(exception.ExceptionRecord.ExceptionInformation[0]) << ")");
 			}
 			result->address = exception.ExceptionRecord.ExceptionInformation[1];
-			dump.is_32bit = dump.is_32bit && result->address <= End32;
+			dump.is_32bit &= result->address < End32;
 		}
 
 		dump.exception = std::move(result);
@@ -225,6 +229,11 @@ namespace
 				CHECK(memory_info.state == minidump::MemoryInfo::State::Free, "Bad undefined memory state (0x" << ::to_hex(::to_raw(memory_info.state)) << ")");
 			}
 
+			dump.is_32bit &= m.end <= End32 || (dump.wow64_ntdll
+				&& ((memory_info.base == 0x000000007fff0000 && m.end == dump.wow64_ntdll->first)
+					|| (memory_info.base >= dump.wow64_ntdll->first && m.end <= dump.wow64_ntdll->second)
+					|| (memory_info.base == dump.wow64_ntdll->second && m.end == 0x00007fffffff0000)));
+
 			// NOTE: Temporary collapsing code.
 			const auto j = std::find_if(dump.memory_regions.rbegin(), dump.memory_regions.rend(), [&memory_info](const auto& memory_region)
 			{
@@ -234,8 +243,6 @@ namespace
 				j->second.end = m.end;
 			else
 				dump.memory_regions.emplace(memory_info.base, std::move(m));
-
-			dump.is_32bit = dump.is_32bit && m.end <= End32;
 		}
 	}
 
@@ -255,10 +262,9 @@ namespace
 		for (const auto& memory_range : memory)
 		{
 			MinidumpData::MemoryInfo m;
-			m.end = memory_range.base + memory_range.location.size;
-
+			m.end = uint64_t{memory_range.base} + memory_range.location.size;
+			CHECK(m.end <= End32, "Bad memory list");
 			dump.memory.emplace(memory_range.base, std::move(m));
-			dump.is_32bit = dump.is_32bit && m.end <= End32;
 
 			for (auto i = dump.loading_stacks.begin(); i != dump.loading_stacks.end(); )
 			{
@@ -279,6 +285,7 @@ namespace
 	void load_memory64_list(MinidumpData& dump, File& file, const minidump::Stream& stream)
 	{
 		CHECK(!dump.threads.empty(), "Loading memory/memory64 list before thread list is not supported");
+		CHECK(!dump.modules.empty(), "Loading memory/memory64 list before module list is not supported");
 		CHECK(dump.memory.empty(), "Duplicate memory/memory64 list");
 
 		minidump::Memory64ListHeader header;
@@ -294,9 +301,8 @@ namespace
 		{
 			MinidumpData::MemoryInfo m;
 			m.end = memory_range.base + memory_range.size;
-
+			dump.is_32bit &= m.end <= End32 || (dump.wow64_ntdll && memory_range.base >= dump.wow64_ntdll->first && m.end <= dump.wow64_ntdll->second);
 			dump.memory.emplace(memory_range.base, std::move(m));
-			dump.is_32bit = dump.is_32bit && m.end <= End32;
 
 			for (auto i = dump.loading_stacks.begin(); i != dump.loading_stacks.end(); )
 			{
@@ -402,10 +408,16 @@ namespace
 					std::cerr << "ERROR: [" << m.file_name << "] " << e.what() << std::endl;
 				}
 			}
-			dump.modules.emplace_back(std::move(m));
 			dump.memory_usage.all_images += m.image_end - m.image_base;
 			dump.memory_usage.max_image = std::max<uint64_t>(dump.memory_usage.max_image, m.image_end - m.image_base);
-			dump.is_32bit = dump.is_32bit && m.image_end <= End32;
+			if (m.image_base == 0x00007ff876fa0000 && m.file_name == "ntdll.dll")
+			{
+				CHECK(!dump.wow64_ntdll, "Duplicate WoW64 ntdll.dll");
+				dump.wow64_ntdll = std::make_unique<std::pair<uint64_t, uint64_t>>(m.image_base, m.image_end);
+			}
+			else
+				dump.is_32bit &= m.image_end <= End32;
+			dump.modules.emplace_back(std::move(m));
 		}
 	}
 
@@ -417,8 +429,8 @@ namespace
 		CHECK(file.read(system_info), "Couldn't read system info");
 		check_extra_data(stream, sizeof system_info);
 		CHECK(system_info.cpu_architecture != minidump::SystemInfo::Unknown, "Unknown CPU architecture");
-		CHECK(system_info.cpu_architecture == minidump::SystemInfo::X86, "Unsupported CPU architecture: " << system_info.cpu_architecture);
 
+		if (system_info.cpu_architecture == minidump::SystemInfo::X86)
 		{
 			std::string cpu = "Unknown";
 			if (!::memcmp(system_info.cpu.x86.vendor_id, "GenuineIntel", sizeof system_info.cpu.x86.vendor_id))
@@ -449,6 +461,8 @@ namespace
 				+ ", stepping " + std::to_string(system_info.cpu_stepping) + ')';
 			dump.generic.emplace_back("CPU:", std::move(cpu));
 		}
+		else
+			CHECK(system_info.cpu_architecture == minidump::SystemInfo::X64, "Unsupported CPU architecture: " << system_info.cpu_architecture);
 
 		if (system_info.cpu_cores > 0)
 			dump.generic.emplace_back("CPU cores:", std::to_string(system_info.cpu_cores));
@@ -526,16 +540,11 @@ namespace
 		{
 			const auto index = &thread - &threads.front() + 1;
 
-			minidump::ThreadContext context;
-			::load_thread_context(context, file, thread.context);
-
 			MinidumpData::Thread t;
 			t.id = thread.id;
 			t.stack_base = thread.stack.base;
 			t.stack_end = thread.stack.base + thread.stack.location.size;
-			t.context.x86.eip = context.x86.eip;
-			t.context.x86.esp = context.x86.esp;
-			t.context.x86.ebp = context.x86.ebp;
+			t.context = ::load_thread_context(file, thread.context);
 
 			t.stack.reset(new uint8_t[t.stack_end - t.stack_base]);
 			if (thread.stack.location.offset)
@@ -548,10 +557,10 @@ namespace
 				dump.loading_stacks.emplace_back(t.stack_base, t.stack_end, t.stack.get());
 			}
 
-			dump.threads.emplace_back(std::move(t));
 			dump.memory_usage.all_stacks += t.stack_base + t.stack_end;
 			dump.memory_usage.max_stack = std::max<uint64_t>(dump.memory_usage.max_stack, t.stack_base + t.stack_end);
-			dump.is_32bit = dump.is_32bit && t.stack_end <= End32;
+			dump.is_32bit &= t.stack_end <= End32;
+			dump.threads.emplace_back(std::move(t));
 		}
 	}
 
@@ -581,7 +590,7 @@ namespace
 			CHECK(j != dump.threads.end(), "Found thread info for unknown thread 0x" << ::to_hex(thread_info.thread_id));
 			j->start_address = thread_info.start_address;
 
-			dump.is_32bit = dump.is_32bit && j->start_address <= End32;
+			dump.is_32bit &= j->start_address < End32;
 		}
 	}
 
@@ -629,8 +638,8 @@ namespace
 			m.timestamp = ::time_t_to_string(unloaded_module.time_date_stamp);
 			m.image_base = unloaded_module.image_base;
 			m.image_end = unloaded_module.image_base + unloaded_module.image_size;
+			dump.is_32bit &= m.image_end <= End32;
 			dump.unloaded_modules.emplace_back(std::move(m));
-			dump.is_32bit = dump.is_32bit && m.image_end <= End32;
 		}
 	}
 
@@ -742,6 +751,7 @@ std::unique_ptr<MinidumpData> MinidumpData::load(const std::string& file_name)
 		}
 	}
 
+	CHECK(dump->is_32bit, "64-bit dumps are not supported");
 	CHECK(dump->loading_stacks.empty(), "Failed to load all stacks");
 
 	if (dump->exception)

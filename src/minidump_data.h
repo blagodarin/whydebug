@@ -46,7 +46,7 @@ public:
 		uint64_t stack_base = 0;
 		uint64_t stack_end = 0;
 		uint64_t start_address = 0;
-		Context context = {};
+		std::unique_ptr<Context> context;
 		std::unique_ptr<uint8_t[]> stack;
 	};
 
@@ -65,7 +65,7 @@ public:
 		uint32_t code = 0;
 		Operation operation = Operation::None;
 		uint64_t address = 0;
-		Context context = {};
+		std::unique_ptr<Context> context;
 
 		std::string to_string(bool is_32bit) const;
 	};
@@ -115,6 +115,7 @@ public:
 
 	time_t timestamp = 0;
 	std::vector<Module> modules;
+	std::unique_ptr<std::pair<uint64_t, uint64_t>> wow64_ntdll;
 	std::vector<Thread> threads;
 	MemoryUsage memory_usage;
 	bool is_32bit = true;

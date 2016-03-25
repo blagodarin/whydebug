@@ -21,8 +21,8 @@ namespace
 	std::vector<std::pair<uint32_t, uint32_t>> build_call_chain(const MinidumpData::Thread& thread, const MinidumpData::Exception* exception)
 	{
 		std::vector<std::pair<uint32_t, uint32_t>> chain;
-		auto ebp = exception ? exception->context.x86.ebp : thread.context.x86.ebp;
-		chain.emplace_back(ebp, exception ? exception->context.x86.eip : thread.context.x86.eip);
+		auto ebp = exception ? exception->context->x86.ebp : thread.context->x86.ebp;
+		chain.emplace_back(ebp, exception ? exception->context->x86.eip : thread.context->x86.eip);
 		while (ebp >= thread.stack_base && ebp + 8 < thread.stack_end)
 		{
 			const auto stack_offset = ebp - thread.stack_base;
@@ -35,7 +35,7 @@ namespace
 
 	Table print_call_stack(const MinidumpData& dump, const MinidumpData::Thread& thread, const MinidumpData::Exception* exception)
 	{
-		if (!thread.start_address || !thread.context.x86.eip || !thread.context.x86.ebp)
+		if (!thread.start_address || !thread.context->x86.eip || !thread.context->x86.ebp)
 			return {};
 		if (exception && exception->thread_id == thread.id)
 		{
@@ -214,7 +214,7 @@ Table Minidump::print_threads() const
 			::to_hex(thread.stack_base, _data->is_32bit),
 			::to_hex(thread.stack_end, _data->is_32bit),
 			decode_code_address(*_data, thread.start_address),
-			decode_code_address(*_data, thread.context.x86.eip),
+			decode_code_address(*_data, thread.context->x86.eip),
 			_data->exception && _data->exception->thread_id == thread.id ? "(exception)" : "",
 		});
 	}

@@ -7,10 +7,15 @@
 #include <boost/program_options/positional_options.hpp>
 #include <boost/program_options/variables_map.hpp>
 
+struct Options
+{
+	std::string dump;
+	boost::optional<std::string> commands;
+};
+
 int main(int argc, char** argv)
 {
-	std::string dump_name;
-	boost::optional<std::string> commands;
+	Options options;
 	try
 	{
 		boost::program_options::options_description o;
@@ -24,9 +29,9 @@ int main(int argc, char** argv)
 		boost::program_options::variables_map vm;
 		boost::program_options::store(boost::program_options::command_line_parser(argc, argv).options(o).positional(p).run(), vm);
 		boost::program_options::notify(vm);
-		dump_name = vm["dump"].as<std::string>();
+		options.dump = vm["dump"].as<std::string>();
 		if (vm.count("commands"))
-			commands = vm["commands"].as<std::string>();
+			options.commands = vm["commands"].as<std::string>();
 	}
 	catch (const boost::program_options::error&)
 	{
@@ -37,7 +42,7 @@ int main(int argc, char** argv)
 	std::unique_ptr<Minidump> dump;
 	try
 	{
-		dump = std::make_unique<Minidump>(dump_name);
+		dump = std::make_unique<Minidump>(options.dump);
 	}
 	catch (const BadCheck& e)
 	{
@@ -46,8 +51,8 @@ int main(int argc, char** argv)
 	}
 
 	Processor processor(std::move(dump));
-	if (commands)
-		return processor.process(*commands) ? 0 : 1;
+	if (options.commands)
+		return processor.process(*options.commands) ? 0 : 1;
 	for (std::string line; ; )
 	{
 		std::cout << "?> ";

@@ -10,7 +10,7 @@ class Minidump
 {
 public:
 
-	Minidump(const std::string& file_name);
+	Minidump(const std::string& file_name, bool scan);
 	~Minidump();
 
 	Minidump() = default;

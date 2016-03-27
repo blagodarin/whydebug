@@ -126,5 +126,5 @@ public:
 	std::vector<std::pair<std::string, std::string>> generic;
 
 	//
-	static std::unique_ptr<MinidumpData> load(const std::string& file_name);
+	static std::unique_ptr<MinidumpData> load(const std::string& file_name, bool scan);
 };

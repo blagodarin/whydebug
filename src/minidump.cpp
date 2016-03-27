@@ -67,8 +67,8 @@ namespace
 	}
 }
 
-Minidump::Minidump(const std::string& file_name)
-	: _data(MinidumpData::load(file_name))
+Minidump::Minidump(const std::string& file_name, bool scan)
+	: _data(MinidumpData::load(file_name, scan))
 {
 }
 

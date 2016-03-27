@@ -11,38 +11,47 @@ struct Options
 {
 	std::string dump;
 	boost::optional<std::string> commands;
+	bool scan = false;
 };
 
 int main(int argc, char** argv)
 {
 	Options options;
-	try
 	{
+		boost::program_options::options_description public_options("Options");
+		public_options.add_options()
+			("scan", boost::program_options::value<bool>()->zero_tokens());
+
 		boost::program_options::options_description o;
-		o.add_options()
+		o.add(public_options).add_options()
 			("dump", boost::program_options::value<std::string>()->required())
 			("commands", boost::program_options::value<std::string>());
 
 		boost::program_options::positional_options_description p;
 		p.add("dump", 1).add("commands", 1);
 
-		boost::program_options::variables_map vm;
-		boost::program_options::store(boost::program_options::command_line_parser(argc, argv).options(o).positional(p).run(), vm);
-		boost::program_options::notify(vm);
-		options.dump = vm["dump"].as<std::string>();
-		if (vm.count("commands"))
-			options.commands = vm["commands"].as<std::string>();
-	}
-	catch (const boost::program_options::error&)
-	{
-		std::cerr << "Usage:\n\twhydebug DUMP [COMMAND]" << std::endl;
-		return 1;
+		try
+		{
+			boost::program_options::variables_map vm;
+			boost::program_options::store(boost::program_options::command_line_parser(argc, argv).options(o).positional(p).run(), vm);
+			boost::program_options::notify(vm);
+			options.dump = vm["dump"].as<std::string>();
+			if (vm.count("commands"))
+				options.commands = vm["commands"].as<std::string>();
+			if (vm.count("scan"))
+				options.scan = true;
+		}
+		catch (const boost::program_options::error&)
+		{
+			std::cerr << "Usage:\n  whydebug [OPTIONS] DUMP [COMMAND]\n\n" << public_options << std::endl;
+			return 1;
+		}
 	}
 
 	std::unique_ptr<Minidump> dump;
 	try
 	{
-		dump = std::make_unique<Minidump>(options.dump);
+		dump = std::make_unique<Minidump>(options.dump, options.scan);
 	}
 	catch (const BadCheck& e)
 	{
@@ -50,18 +59,21 @@ int main(int argc, char** argv)
 		return 1;
 	}
 
-	Processor processor(std::move(dump));
-	if (options.commands)
-		return processor.process(*options.commands) ? 0 : 1;
-	for (std::string line; ; )
+	if (!options.scan)
 	{
-		std::cout << "?> ";
-		if (!std::getline(std::cin, line))
+		Processor processor(std::move(dump));
+		if (options.commands)
+			return processor.process(*options.commands) ? 0 : 1;
+		for (std::string line; ; )
 		{
-			std::cout << std::endl;
-			break;
+			std::cout << "?> ";
+			if (!std::getline(std::cin, line))
+			{
+				std::cout << std::endl;
+				break;
+			}
+			processor.process(line);
 		}
-		processor.process(line);
 	}
 	return 0;
 }

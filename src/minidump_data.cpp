@@ -104,6 +104,8 @@ namespace
 	class Loader
 	{
 	public:
+		Loader(bool scan) : _scan(scan) {}
+
 		std::unique_ptr<MinidumpData> load(const std::string& file_name);
 
 	private:
@@ -123,6 +125,7 @@ namespace
 		void load_vm_counters(MinidumpData&, File&, const minidump::Stream&);
 
 	private:
+		const bool _scan;
 		std::vector<std::tuple<uint64_t, uint64_t, uint8_t*>> _loading_stacks;
 		std::unique_ptr<std::pair<uint64_t, uint64_t>> _wow64_ntdll;
 	};
@@ -138,6 +141,38 @@ namespace
 		CHECK(file.read(header), "Couldn't read header");
 		CHECK_EQ(header.signature, minidump::Header::Signature, "Header signature mismatch");
 		CHECK_EQ(header.version, minidump::Header::Version, "Header version mismatch");
+
+		if (_scan)
+		{
+			std::cout << "MINIDUMP_HEADER"
+				<< "\n\tVersion[31:16]=0x" << ::to_hex(header.implementation_specific)
+				<< "\n\tCheckSum=0x" << ::to_hex(header.checksum)
+				<< "\n\tFlags=0x" << ::to_hex(header.flags);
+			if (header.flags == 0) std::cout << "\n\t\tMiniDumpNormal";
+			if (header.flags & 0x0000000000000001) std::cout << "\n\t\tMiniDumpWithDataSegs";
+			if (header.flags & 0x0000000000000002) std::cout << "\n\t\tMiniDumpWithFullMemory";
+			if (header.flags & 0x0000000000000004) std::cout << "\n\t\tMiniDumpWithHandleData";
+			if (header.flags & 0x0000000000000008) std::cout << "\n\t\tMiniDumpFilterMemory";
+			if (header.flags & 0x0000000000000010) std::cout << "\n\t\tMiniDumpScanMemory";
+			if (header.flags & 0x0000000000000020) std::cout << "\n\t\tMiniDumpWithUnloadedModules";
+			if (header.flags & 0x0000000000000040) std::cout << "\n\t\tMiniDumpWithIndirectlyReferencedMemory";
+			if (header.flags & 0x0000000000000080) std::cout << "\n\t\tMiniDumpFilterModulePaths";
+			if (header.flags & 0x0000000000000100) std::cout << "\n\t\tMiniDumpWithProcessThreadData";
+			if (header.flags & 0x0000000000000200) std::cout << "\n\t\tMiniDumpWithPrivateReadWriteMemory";
+			if (header.flags & 0x0000000000000400) std::cout << "\n\t\tMiniDumpWithoutOptionalData";
+			if (header.flags & 0x0000000000000800) std::cout << "\n\t\tMiniDumpWithFullMemoryInfo";
+			if (header.flags & 0x0000000000001000) std::cout << "\n\t\tMiniDumpWithThreadInfo";
+			if (header.flags & 0x0000000000002000) std::cout << "\n\t\tMiniDumpWithCodeSegs";
+			if (header.flags & 0x0000000000004000) std::cout << "\n\t\tMiniDumpWithoutAuxiliaryState";
+			if (header.flags & 0x0000000000008000) std::cout << "\n\t\tMiniDumpWithFullAuxiliaryState";
+			if (header.flags & 0x0000000000010000) std::cout << "\n\t\tMiniDumpWithPrivateWriteCopyMemory";
+			if (header.flags & 0x0000000000020000) std::cout << "\n\t\tMiniDumpIgnoreInaccessibleMemory";
+			if (header.flags & 0x0000000000040000) std::cout << "\n\t\tMiniDumpWithTokenInformation";
+			if (header.flags & 0x0000000000080000) std::cout << "\n\t\tMiniDumpWithModuleHeaders";
+			if (header.flags & 0x0000000000100000) std::cout << "\n\t\tMiniDumpFilterTriage";
+			if (header.flags & 0xffffffffffe00000) std::cout << "\n\t\t0x" << ::to_hex(header.flags & 0xffffffffffe00000);
+			std::cout << std::endl;
+		}
 
 		dump->generic.emplace_back("Timestamp:", ::time_t_to_string(header.timestamp));
 		dump->timestamp = header.timestamp;
@@ -168,7 +203,11 @@ namespace
 		{
 			const auto i = handlers.find(stream.type);
 			if (i != handlers.end())
+			{
+				if (_scan)
+					std::cout << ::stream_name(stream.type) << std::endl;
 				(this->*i->second)(*dump, file, stream);
+			}
 			else
 			{
 				if (stream.type == minidump::Stream::Type::Unused && stream.location.offset == 0 && stream.location.size == 0)
@@ -817,9 +856,9 @@ namespace
 	}
 }
 
-std::unique_ptr<MinidumpData> MinidumpData::load(const std::string& file_name)
+std::unique_ptr<MinidumpData> MinidumpData::load(const std::string& file_name, bool scan)
 {
-	return Loader().load(file_name);
+	return Loader(scan).load(file_name);
 }
 
 std::string MinidumpData::Exception::to_string(bool is_32bit) const

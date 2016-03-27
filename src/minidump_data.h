@@ -115,7 +115,6 @@ public:
 
 	time_t timestamp = 0;
 	std::vector<Module> modules;
-	std::unique_ptr<std::pair<uint64_t, uint64_t>> wow64_ntdll;
 	std::vector<Thread> threads;
 	MemoryUsage memory_usage;
 	bool is_32bit = true;
@@ -125,7 +124,6 @@ public:
 	std::vector<UnloadedModule> unloaded_modules;
 	std::vector<Handle> handles;
 	std::vector<std::pair<std::string, std::string>> generic;
-	std::vector<std::tuple<uint64_t, uint64_t, uint8_t*>> loading_stacks; // TODO: Remove.
 
 	//
 	static std::unique_ptr<MinidumpData> load(const std::string& file_name);

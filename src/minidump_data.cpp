@@ -101,7 +101,124 @@ namespace
 
 namespace
 {
-	void load_exception(MinidumpData& dump, File& file, const minidump::Stream& stream)
+	class Loader
+	{
+	public:
+		std::unique_ptr<MinidumpData> load(const std::string& file_name);
+
+	private:
+		void load_exception(MinidumpData&, File&, const minidump::Stream&);
+		void load_handle_data(MinidumpData&, File&, const minidump::Stream&);
+		void load_memory_info_list(MinidumpData&, File&, const minidump::Stream&);
+		void load_memory_list(MinidumpData&, File&, const minidump::Stream&);
+		void load_memory64_list(MinidumpData&, File&, const minidump::Stream&);
+		void load_misc_info(MinidumpData&, File&, const minidump::Stream&);
+		void load_module_list(MinidumpData&, File&, const minidump::Stream&);
+		void load_system_info(MinidumpData&, File&, const minidump::Stream&);
+		void load_system_memory_info(MinidumpData&, File&, const minidump::Stream&);
+		void load_thread_list(MinidumpData&, File&, const minidump::Stream&);
+		void load_thread_info_list(MinidumpData&, File&, const minidump::Stream&);
+		void load_tokens(MinidumpData&, File&, const minidump::Stream&);
+		void load_unloaded_module_list(MinidumpData&, File&, const minidump::Stream&);
+		void load_vm_counters(MinidumpData&, File&, const minidump::Stream&);
+
+	private:
+		std::vector<std::tuple<uint64_t, uint64_t, uint8_t*>> _loading_stacks;
+		std::unique_ptr<std::pair<uint64_t, uint64_t>> _wow64_ntdll;
+	};
+
+	std::unique_ptr<MinidumpData> Loader::load(const std::string& file_name)
+	{
+		File file(file_name);
+		CHECK(file, "Couldn't open \"" << file_name << "\"");
+
+		auto dump = std::make_unique<MinidumpData>();
+
+		minidump::Header header;
+		CHECK(file.read(header), "Couldn't read header");
+		CHECK_EQ(header.signature, minidump::Header::Signature, "Header signature mismatch");
+		CHECK_EQ(header.version, minidump::Header::Version, "Header version mismatch");
+
+		dump->generic.emplace_back("Timestamp:", ::time_t_to_string(header.timestamp));
+		dump->timestamp = header.timestamp;
+
+		std::vector<minidump::Stream> streams(header.stream_count);
+		CHECK(file.seek(header.stream_list_offset), "Bad stream list offset");
+		CHECK(file.read(streams.data(), streams.size() * sizeof(minidump::Stream)), "Couldn't read stream list");
+
+		static const std::map<minidump::Stream::Type, void (Loader::*)(MinidumpData&, File&, const minidump::Stream&)> handlers =
+		{
+			{ minidump::Stream::Type::ThreadList, &Loader::load_thread_list },
+			{ minidump::Stream::Type::ModuleList, &Loader::load_module_list },
+			{ minidump::Stream::Type::MemoryList, &Loader::load_memory_list },
+			{ minidump::Stream::Type::Memory64List, &Loader::load_memory64_list },
+			{ minidump::Stream::Type::Exception, &Loader::load_exception },
+			{ minidump::Stream::Type::SystemInfo, &Loader::load_system_info },
+			{ minidump::Stream::Type::HandleData, &Loader::load_handle_data },
+			{ minidump::Stream::Type::UnloadedModuleList, &Loader::load_unloaded_module_list },
+			{ minidump::Stream::Type::MiscInfo, &Loader::load_misc_info },
+			{ minidump::Stream::Type::MemoryInfoList, &Loader::load_memory_info_list },
+			{ minidump::Stream::Type::ThreadInfoList, &Loader::load_thread_info_list },
+			{ minidump::Stream::Type::Tokens, &Loader::load_tokens },
+			{ minidump::Stream::Type::SystemMemoryInfo, &Loader::load_system_memory_info },
+			{ minidump::Stream::Type::ProcessVmCounters, &Loader::load_vm_counters },
+		};
+
+		for (const auto& stream : streams)
+		{
+			const auto i = handlers.find(stream.type);
+			if (i != handlers.end())
+				(this->*i->second)(*dump, file, stream);
+			else
+			{
+				if (stream.type == minidump::Stream::Type::Unused && stream.location.offset == 0 && stream.location.size == 0)
+					continue; // A valid stream list may end with such entries.
+				std::cerr << "WARNING: Skipped unknown stream " << std::to_string(::to_raw(stream.type))
+					<< " (" << stream.location.size << " bytes at 0x" << ::to_hex(stream.location.offset) << ")" << std::endl;
+			}
+		}
+
+		CHECK(dump->is_32bit, "64-bit dumps are not supported");
+		CHECK(_loading_stacks.empty(), "Failed to load all stacks");
+
+		if (dump->exception)
+		{
+			const auto i = std::find_if(dump->threads.begin(), dump->threads.end(), [&dump](const auto& thread)
+			{
+				return thread.id == dump->exception->thread_id;
+			});
+			CHECK(i != dump->threads.end(), "Exception in unknown thread");
+			dump->exception->thread = &*i;
+		}
+
+		for (auto& memory_range : dump->memory)
+		{
+			for (const auto& module : dump->modules)
+			{
+				if (memory_range.first >= module.image_base && memory_range.second.end <= module.image_end)
+				{
+					memory_range.second.usage = MinidumpData::MemoryInfo::Usage::Image;
+					memory_range.second.usage_index = &module - &dump->modules.front() + 1;
+					break;
+				}
+			}
+			if (memory_range.second.usage != MinidumpData::MemoryInfo::Usage::Unknown)
+				continue;
+			for (const auto& thread : dump->threads)
+			{
+				if (memory_range.first >= thread.stack_base && memory_range.second.end <= thread.stack_end)
+				{
+					memory_range.second.usage = MinidumpData::MemoryInfo::Usage::Stack;
+					memory_range.second.usage_index = &thread - &dump->threads.front() + 1;
+					break;
+				}
+			}
+		}
+
+		return dump;
+	}
+
+	void Loader::load_exception(MinidumpData& dump, File& file, const minidump::Stream& stream)
 	{
 		CHECK(!dump.exception, "Duplicate exception");
 
@@ -139,7 +256,7 @@ namespace
 		dump.exception = std::move(result);
 	}
 
-	void load_handle_data(MinidumpData& dump, File& file, const minidump::Stream& stream)
+	void Loader::load_handle_data(MinidumpData& dump, File& file, const minidump::Stream& stream)
 	{
 		CHECK(dump.handles.empty(), "Duplicate handle data list");
 
@@ -186,7 +303,7 @@ namespace
 		}
 	}
 
-	void load_memory_info_list(MinidumpData& dump, File& file, const minidump::Stream& stream)
+	void Loader::load_memory_info_list(MinidumpData& dump, File& file, const minidump::Stream& stream)
 	{
 		CHECK(dump.memory_regions.empty(), "Duplicate memory info list");
 
@@ -229,10 +346,10 @@ namespace
 				CHECK(memory_info.state == minidump::MemoryInfo::State::Free, "Bad undefined memory state (0x" << ::to_hex(::to_raw(memory_info.state)) << ")");
 			}
 
-			dump.is_32bit &= m.end <= End32 || (dump.wow64_ntdll
-				&& ((memory_info.base == 0x000000007fff0000 && m.end == dump.wow64_ntdll->first)
-					|| (memory_info.base >= dump.wow64_ntdll->first && m.end <= dump.wow64_ntdll->second)
-					|| (memory_info.base == dump.wow64_ntdll->second && m.end == 0x00007fffffff0000)));
+			dump.is_32bit &= m.end <= End32 || (_wow64_ntdll
+				&& ((memory_info.base == 0x000000007fff0000 && m.end == _wow64_ntdll->first)
+					|| (memory_info.base >= _wow64_ntdll->first && m.end <= _wow64_ntdll->second)
+					|| (memory_info.base == _wow64_ntdll->second && m.end == 0x00007fffffff0000)));
 
 			// NOTE: Temporary collapsing code.
 			const auto j = std::find_if(dump.memory_regions.rbegin(), dump.memory_regions.rend(), [&memory_info](const auto& memory_region)
@@ -246,7 +363,7 @@ namespace
 		}
 	}
 
-	void load_memory_list(MinidumpData& dump, File& file, const minidump::Stream& stream)
+	void Loader::load_memory_list(MinidumpData& dump, File& file, const minidump::Stream& stream)
 	{
 		CHECK(!dump.threads.empty(), "Loading memory/memory64 list before thread list is not supported");
 		CHECK(dump.memory.empty(), "Duplicate memory/memory64 list");
@@ -266,7 +383,7 @@ namespace
 			CHECK(m.end <= End32, "Bad memory list");
 			dump.memory.emplace(memory_range.base, std::move(m));
 
-			for (auto i = dump.loading_stacks.begin(); i != dump.loading_stacks.end(); )
+			for (auto i = _loading_stacks.begin(); i != _loading_stacks.end(); )
 			{
 				const auto stack_base = std::get<0>(*i);
 				const auto stack_end = std::get<1>(*i);
@@ -274,7 +391,7 @@ namespace
 				{
 					CHECK(file.seek(memory_range.location.offset + (stack_base - memory_range.base)), "Alarm!");
 					CHECK(file.read(std::get<2>(*i), stack_end - stack_base), "Alarm!");
-					i = dump.loading_stacks.erase(i);
+					i = _loading_stacks.erase(i);
 				}
 				else
 					++i;
@@ -282,7 +399,7 @@ namespace
 		}
 	}
 
-	void load_memory64_list(MinidumpData& dump, File& file, const minidump::Stream& stream)
+	void Loader::load_memory64_list(MinidumpData& dump, File& file, const minidump::Stream& stream)
 	{
 		CHECK(!dump.threads.empty(), "Loading memory/memory64 list before thread list is not supported");
 		CHECK(!dump.modules.empty(), "Loading memory/memory64 list before module list is not supported");
@@ -301,10 +418,10 @@ namespace
 		{
 			MinidumpData::MemoryInfo m;
 			m.end = memory_range.base + memory_range.size;
-			dump.is_32bit &= m.end <= End32 || (dump.wow64_ntdll && memory_range.base >= dump.wow64_ntdll->first && m.end <= dump.wow64_ntdll->second);
+			dump.is_32bit &= m.end <= End32 || (_wow64_ntdll && memory_range.base >= _wow64_ntdll->first && m.end <= _wow64_ntdll->second);
 			dump.memory.emplace(memory_range.base, std::move(m));
 
-			for (auto i = dump.loading_stacks.begin(); i != dump.loading_stacks.end(); )
+			for (auto i = _loading_stacks.begin(); i != _loading_stacks.end(); )
 			{
 				const auto stack_base = std::get<0>(*i);
 				const auto stack_end = std::get<1>(*i);
@@ -312,7 +429,7 @@ namespace
 				{
 					CHECK(file.seek(offset + (stack_base - memory_range.base)), "Bad stack data");
 					CHECK(file.read(std::get<2>(*i), stack_end - stack_base), "Couldn't read stack data");
-					i = dump.loading_stacks.erase(i);
+					i = _loading_stacks.erase(i);
 				}
 				else
 					++i;
@@ -322,7 +439,7 @@ namespace
 		}
 	}
 
-	void load_misc_info(MinidumpData& dump, File& file, const minidump::Stream& stream)
+	void Loader::load_misc_info(MinidumpData& dump, File& file, const minidump::Stream& stream)
 	{
 		minidump::MiscInfo5 misc_info;
 		CHECK(stream.location.size == sizeof(minidump::MiscInfo)
@@ -352,7 +469,7 @@ namespace
 			dump.generic.emplace_back("CPU frequency:", ::to_string(misc_info.processor_current_mhz / 1000.0) + " GHz");
 	}
 
-	void load_module_list(MinidumpData& dump, File& file, const minidump::Stream& stream)
+	void Loader::load_module_list(MinidumpData& dump, File& file, const minidump::Stream& stream)
 	{
 		const auto version_to_string = [](const uint16_t (&parts)[4]) -> std::string
 		{
@@ -412,8 +529,8 @@ namespace
 			dump.memory_usage.max_image = std::max<uint64_t>(dump.memory_usage.max_image, m.image_end - m.image_base);
 			if (m.image_base == 0x00007ff876fa0000 && m.file_name == "ntdll.dll")
 			{
-				CHECK(!dump.wow64_ntdll, "Duplicate WoW64 ntdll.dll");
-				dump.wow64_ntdll = std::make_unique<std::pair<uint64_t, uint64_t>>(m.image_base, m.image_end);
+				CHECK(!_wow64_ntdll, "Duplicate WoW64 ntdll.dll");
+				_wow64_ntdll = std::make_unique<std::pair<uint64_t, uint64_t>>(m.image_base, m.image_end);
 			}
 			else
 				dump.is_32bit &= m.image_end <= End32;
@@ -421,7 +538,7 @@ namespace
 		}
 	}
 
-	void load_system_info(MinidumpData& dump, File& file, const minidump::Stream& stream)
+	void Loader::load_system_info(MinidumpData& dump, File& file, const minidump::Stream& stream)
 	{
 		minidump::SystemInfo system_info;
 		CHECK(stream.location.size >= sizeof system_info, "Bad system info stream");
@@ -504,7 +621,7 @@ namespace
 		}
 	}
 
-	void load_system_memory_info(MinidumpData& dump, File& file, const minidump::Stream& stream)
+	void Loader::load_system_memory_info(MinidumpData& dump, File& file, const minidump::Stream& stream)
 	{
 		minidump::SystemMemoryInfo1 system_memory_info;
 		CHECK(stream.location.size == sizeof system_memory_info, "Bad SystemMemoryInfoStream");
@@ -524,7 +641,7 @@ namespace
 			+ " (" + ::to_human_readable(system_memory_info.basic_info.MaximumUserModeAddress + 1 - system_memory_info.basic_info.MinimumUserModeAddress) + ")");
 	}
 
-	void load_thread_list(MinidumpData& dump, File& file, const minidump::Stream& stream)
+	void Loader::load_thread_list(MinidumpData& dump, File& file, const minidump::Stream& stream)
 	{
 		CHECK(dump.threads.empty(), "Duplicate thread list");
 
@@ -554,7 +671,7 @@ namespace
 			}
 			else
 			{
-				dump.loading_stacks.emplace_back(t.stack_base, t.stack_end, t.stack.get());
+				_loading_stacks.emplace_back(t.stack_base, t.stack_end, t.stack.get());
 			}
 
 			dump.memory_usage.all_stacks += t.stack_base + t.stack_end;
@@ -564,7 +681,7 @@ namespace
 		}
 	}
 
-	void load_thread_info_list(MinidumpData& dump, File& file, const minidump::Stream& stream)
+	void Loader::load_thread_info_list(MinidumpData& dump, File& file, const minidump::Stream& stream)
 	{
 		CHECK(!dump.threads.empty(), "Loading thread info before thread list is not supported");
 
@@ -594,7 +711,7 @@ namespace
 		}
 	}
 
-	void load_tokens(MinidumpData&, File& file, const minidump::Stream& stream)
+	void Loader::load_tokens(MinidumpData&, File& file, const minidump::Stream& stream)
 	{
 		minidump::TokenInfoListHeader header;
 		CHECK_GE(stream.location.size, sizeof header, "Bad token info list stream");
@@ -613,7 +730,7 @@ namespace
 		}
 	}
 
-	void load_unloaded_module_list(MinidumpData& dump, File& file, const minidump::Stream& stream)
+	void Loader::load_unloaded_module_list(MinidumpData& dump, File& file, const minidump::Stream& stream)
 	{
 		CHECK(dump.unloaded_modules.empty(), "Duplicate unloaded module list");
 
@@ -643,7 +760,7 @@ namespace
 		}
 	}
 
-	void load_vm_counters(MinidumpData& dump, File& file, const minidump::Stream& stream)
+	void Loader::load_vm_counters(MinidumpData& dump, File& file, const minidump::Stream& stream)
 	{
 		union
 		{
@@ -702,93 +819,7 @@ namespace
 
 std::unique_ptr<MinidumpData> MinidumpData::load(const std::string& file_name)
 {
-	File file(file_name);
-	CHECK(file, "Couldn't open \"" << file_name << "\"");
-
-	auto dump = std::make_unique<MinidumpData>();
-
-	minidump::Header header;
-	CHECK(file.read(header), "Couldn't read header");
-	CHECK_EQ(header.signature, minidump::Header::Signature, "Header signature mismatch");
-	CHECK_EQ(header.version, minidump::Header::Version, "Header version mismatch");
-
-	dump->generic.emplace_back("Timestamp:", ::time_t_to_string(header.timestamp));
-	dump->timestamp = header.timestamp;
-
-	std::vector<minidump::Stream> streams(header.stream_count);
-	CHECK(file.seek(header.stream_list_offset), "Bad stream list offset");
-	CHECK(file.read(streams.data(), streams.size() * sizeof(minidump::Stream)), "Couldn't read stream list");
-
-	static const std::map<minidump::Stream::Type, void (*)(MinidumpData&, File&, const minidump::Stream&)> handlers =
-	{
-		{ minidump::Stream::Type::ThreadList, load_thread_list },
-		{ minidump::Stream::Type::ModuleList, load_module_list },
-		{ minidump::Stream::Type::MemoryList, load_memory_list },
-		{ minidump::Stream::Type::Memory64List, load_memory64_list },
-		{ minidump::Stream::Type::Exception, load_exception },
-		{ minidump::Stream::Type::SystemInfo, load_system_info },
-		{ minidump::Stream::Type::HandleData, load_handle_data },
-		{ minidump::Stream::Type::UnloadedModuleList, load_unloaded_module_list },
-		{ minidump::Stream::Type::MiscInfo, load_misc_info },
-		{ minidump::Stream::Type::MemoryInfoList, load_memory_info_list },
-		{ minidump::Stream::Type::ThreadInfoList, load_thread_info_list },
-		{ minidump::Stream::Type::Tokens, load_tokens },
-		{ minidump::Stream::Type::SystemMemoryInfo, load_system_memory_info },
-		{ minidump::Stream::Type::ProcessVmCounters, load_vm_counters },
-	};
-
-	for (const auto& stream : streams)
-	{
-		const auto i = handlers.find(stream.type);
-		if (i != handlers.end())
-			i->second(*dump, file, stream);
-		else
-		{
-			if (stream.type == minidump::Stream::Type::Unused && stream.location.offset == 0 && stream.location.size == 0)
-				continue; // A valid stream list may end with such entries.
-			std::cerr << "WARNING: Skipped unknown stream " << std::to_string(::to_raw(stream.type))
-				<< " (" << stream.location.size << " bytes at 0x" << ::to_hex(stream.location.offset) << ")" << std::endl;
-		}
-	}
-
-	CHECK(dump->is_32bit, "64-bit dumps are not supported");
-	CHECK(dump->loading_stacks.empty(), "Failed to load all stacks");
-
-	if (dump->exception)
-	{
-		const auto i = std::find_if(dump->threads.begin(), dump->threads.end(), [&dump](const auto& thread)
-		{
-			return thread.id == dump->exception->thread_id;
-		});
-		CHECK(i != dump->threads.end(), "Exception in unknown thread");
-		dump->exception->thread = &*i;
-	}
-
-	for (auto& memory_range : dump->memory)
-	{
-		for (const auto& module : dump->modules)
-		{
-			if (memory_range.first >= module.image_base && memory_range.second.end <= module.image_end)
-			{
-				memory_range.second.usage = MinidumpData::MemoryInfo::Usage::Image;
-				memory_range.second.usage_index = &module - &dump->modules.front() + 1;
-				break;
-			}
-		}
-		if (memory_range.second.usage != MinidumpData::MemoryInfo::Usage::Unknown)
-			continue;
-		for (const auto& thread : dump->threads)
-		{
-			if (memory_range.first >= thread.stack_base && memory_range.second.end <= thread.stack_end)
-			{
-				memory_range.second.usage = MinidumpData::MemoryInfo::Usage::Stack;
-				memory_range.second.usage_index = &thread - &dump->threads.front() + 1;
-				break;
-			}
-		}
-	}
-
-	return dump;
+	return Loader().load(file_name);
 }
 
 std::string MinidumpData::Exception::to_string(bool is_32bit) const

@@ -123,8 +123,7 @@ public:
 	std::map<uint64_t, MemoryRegion> memory_regions;
 	std::vector<UnloadedModule> unloaded_modules;
 	std::vector<Handle> handles;
-	std::vector<std::pair<std::string, std::string>> generic;
 
 	//
-	static std::unique_ptr<MinidumpData> load(const std::string& file_name, bool scan);
+	static std::unique_ptr<MinidumpData> load(const std::string& file_name, bool summary);
 };

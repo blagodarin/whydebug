@@ -11,7 +11,7 @@ struct Options
 {
 	std::string dump;
 	boost::optional<std::string> commands;
-	bool scan = false;
+	bool summary = false;
 };
 
 int main(int argc, char** argv)
@@ -20,7 +20,7 @@ int main(int argc, char** argv)
 	{
 		boost::program_options::options_description public_options("Options");
 		public_options.add_options()
-			("scan", boost::program_options::value<bool>()->zero_tokens());
+			("summary,S", boost::program_options::value<bool>()->zero_tokens());
 
 		boost::program_options::options_description o;
 		o.add(public_options).add_options()
@@ -38,8 +38,8 @@ int main(int argc, char** argv)
 			options.dump = vm["dump"].as<std::string>();
 			if (vm.count("commands"))
 				options.commands = vm["commands"].as<std::string>();
-			if (vm.count("scan"))
-				options.scan = true;
+			if (vm.count("summary"))
+				options.summary = true;
 		}
 		catch (const boost::program_options::error&)
 		{
@@ -51,7 +51,7 @@ int main(int argc, char** argv)
 	std::unique_ptr<Minidump> dump;
 	try
 	{
-		dump = std::make_unique<Minidump>(options.dump, options.scan);
+		dump = std::make_unique<Minidump>(options.dump, options.summary);
 	}
 	catch (const BadCheck& e)
 	{
@@ -59,7 +59,7 @@ int main(int argc, char** argv)
 		return 1;
 	}
 
-	if (!options.scan)
+	if (!options.summary)
 	{
 		Processor processor(std::move(dump));
 		if (options.commands)

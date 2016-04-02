@@ -30,13 +30,6 @@ Processor::Processor(std::unique_ptr<Minidump>&& dump)
 				_table = _dump->print_handles();
 			}
 		},
-		{ { "i" }, {},
-			"Build generic information.",
-			[this](const std::vector<std::string>&)
-			{
-				_table = _dump->print_generic_information();
-			}
-		},
 		{ { "m" }, {},
 			"Build loaded modules list.",
 			[this](const std::vector<std::string>&)

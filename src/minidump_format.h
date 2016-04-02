@@ -429,8 +429,7 @@ namespace minidump
 			Unknown = 0xffff, // PROCESSOR_ARCHITECTURE_UNKNOWN
 		} cpu_architecture;
 		uint16_t cpu_family;
-		uint8_t cpu_stepping;
-		uint8_t cpu_model;
+		uint16_t ProcessorRevision;
 		uint8_t cpu_cores;
 		enum : uint8_t
 		{
